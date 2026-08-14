@@ -482,14 +482,22 @@ async function cloudSet(key, value){
     throw new Error('ไม่สามารถบันทึกข้อมูลลงเครื่องนี้ได้ (พื้นที่จัดเก็บอาจเต็มหรือถูกปิดใช้งาน)');
   }
 }
-async function pushConfigToSheets(key, value){
+async function pushConfigToSheets(key, value, throwOnError){
   if(!APPS_SCRIPT_URL) return;
   try{
-    await fetch(APPS_SCRIPT_URL, {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
       body: JSON.stringify({ action:'saveConfig', data:{ key, value: JSON.stringify(value) } })
     });
-  }catch(e){ console.warn('pushConfigToSheets failed for '+key+' (saved on this device only)', e); }
+    let json = null;
+    try{ json = await res.json(); }catch(parseErr){ /* response wasn't valid JSON */ }
+    if(!res.ok || !json || json.ok !== true){
+      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกสำเร็จสำหรับ "'+key+'" (HTTP '+res.status+')');
+    }
+  }catch(e){
+    console.warn('pushConfigToSheets failed for '+key+' (saved on this device only)', e);
+    if(throwOnError) throw e;
+  }
 }
 async function saveUsers(){ await cloudSet('sst_users', DB.users); pushConfigToSheets('users', DB.users); }
 async function saveSales(){ await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
@@ -506,9 +514,20 @@ async function saveBranches(){ await cloudSet('sst_branches', DB.branches); push
    This bridge works regardless of window.storage availability —
    it's a plain fetch() to your deployed Apps Script.
    ========================================================= */
+// Baked-in default so every device that opens this exact file auto-connects
+// on first load without needing to paste the URL manually. If a device later
+// saves a different URL via Settings, that per-device override always wins.
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdrGhFJfdPhPmUwkzQFI2Pg-uMRR215a8VHBiG75H-7B51yjqn2JZsFZwXpS9oJptxgQ/exec';
 let APPS_SCRIPT_URL = '';
 async function loadAppsScriptUrl(){
-  APPS_SCRIPT_URL = (await safeGet('sst_apps_script_url')) || '';
+  const saved = await safeGet('sst_apps_script_url');
+  const neverSet = (saved === null || saved === undefined);
+  APPS_SCRIPT_URL = neverSet ? DEFAULT_APPS_SCRIPT_URL : saved;
+  if(neverSet && DEFAULT_APPS_SCRIPT_URL){
+    // first time this device has opened the file — remember the baked-in
+    // default locally too, so Settings shows it as already connected
+    lsSet('sst_apps_script_url', DEFAULT_APPS_SCRIPT_URL);
+  }
 }
 async function saveAppsScriptUrl(url){
   APPS_SCRIPT_URL = url;
@@ -1588,14 +1607,14 @@ async function pushLocalUsersAndBranchesToSheets(){
   if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
   if(!confirm('ยืนยันส่งข้อมูลของเครื่องนี้ (พนักงาน, สาขา, ยอดขาย, เช็ครับ) ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
   try{
-    await pushConfigToSheets('users', DB.users);
-    await pushConfigToSheets('branches', DB.branches);
-    await pushConfigToSheets('sales', DB.sales);
-    await pushConfigToSheets('checks', DB.checks);
-    toast('ส่งข้อมูลของเครื่องนี้ขึ้น Google Sheets เรียบร้อย');
+    await pushConfigToSheets('users', DB.users, true);
+    await pushConfigToSheets('branches', DB.branches, true);
+    await pushConfigToSheets('sales', DB.sales, true);
+    await pushConfigToSheets('checks', DB.checks, true);
+    toast('ส่งข้อมูลของเครื่องนี้ขึ้น Google Sheets เรียบร้อย (ยืนยันจาก Apps Script แล้ว)');
   }catch(e){
     console.error('pushLocalUsersAndBranchesToSheets failed', e);
-    toast('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่', true);
+    toast('ส่งข้อมูลไม่สำเร็จ: '+(e&&e.message?e.message:'ไม่ทราบสาเหตุ')+' — เช็ค Apps Script URL/Deploy อีกครั้ง', true);
   }
 }
 async function saveGsUrlFromForm(){
