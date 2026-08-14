@@ -362,7 +362,10 @@ tr:hover td{background:var(--surface-soft);}
         <div class="topbar-title" id="pageTitle">Dashboard</div>
         <div class="topbar-sub" id="pageSub"></div>
       </div>
-      <div class="sync-pill" id="syncPill"><span class="sync-dot"></span> <span id="syncLabel">ซิงค์ข้อมูลล่าสุด</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm no-print" onclick="manualRefresh()" title="ดึงข้อมูลล่าสุดตอนนี้" id="refreshBtn">🔄</button>
+        <div class="sync-pill" id="syncPill"><span class="sync-dot"></span> <span id="syncLabel">ซิงค์ข้อมูลล่าสุด</span></div>
+      </div>
     </div>
     <div class="content" id="content"></div>
   </div>
@@ -446,7 +449,10 @@ async function loadDB(){
   if(APPS_SCRIPT_URL){
     try{
       const controller = new AbortController();
-      const timeoutId = setTimeout(()=>controller.abort(), 7000); // don't let a slow Apps Script response block the app
+      // Apps Script can be genuinely slow, especially on a "cold start" —
+      // 7s was too aggressive and was aborting real, still-loading
+      // responses, silently leaving this device on stale/empty local data.
+      const timeoutId = setTimeout(()=>controller.abort(), 25000);
       const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig', {signal: controller.signal});
       clearTimeout(timeoutId);
       const json = await res.json();
@@ -648,6 +654,20 @@ function logout(){
   document.getElementById('loginId').value='';
   document.getElementById('loginPass').value='';
   clearInterval(syncTimer);
+}
+async function manualRefresh(){
+  const btn = document.getElementById('refreshBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳'; }
+  try{
+    await loadDB();
+    renderContent();
+    toast('ดึงข้อมูลล่าสุดแล้ว');
+  }catch(e){
+    console.error('manualRefresh failed', e);
+    toast('ดึงข้อมูลไม่สำเร็จ กรุณาลองใหม่', true);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '🔄'; }
+  }
 }
 function startSync(){
   clearInterval(syncTimer);
