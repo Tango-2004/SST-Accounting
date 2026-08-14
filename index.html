@@ -1769,6 +1769,22 @@ async function changeSelfPass(){
   renderShell();
 }
 
+/* ---------- debug helper: reliably accessible from any browser's console,
+   even ones (like Safari) that don't expose top-level let/const to the
+   console evaluator ---------- */
+window.SST_DEBUG = function(){
+  return {
+    APPS_SCRIPT_URL: APPS_SCRIPT_URL,
+    HAS_CLOUD_SYNC: HAS_CLOUD_SYNC,
+    CURRENT_user: CURRENT ? {id: CURRENT.id, role: CURRENT.role} : null,
+    sales_count: DB.sales.length,
+    sales_today: DB.sales.filter(function(s){ return s.date === todayStr(); }),
+    checks_count: DB.checks.length,
+    users_count: DB.users.length,
+    today_computed_as: todayStr()
+  };
+};
+
 /* ---------- global safety net: never fail silently ---------- */
 window.addEventListener('error', function(e){
   console.error('Uncaught error:', e.error || e.message);
