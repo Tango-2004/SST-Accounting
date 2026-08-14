@@ -439,18 +439,24 @@ async function loadDB(){
   DB.branches = b || defaultBranches();
   if(!u){ await saveUsers(); }
   if(!b){ await saveBranches(); }
-  // If Google Sheets is connected, it's the authoritative shared copy of the
-  // employee/branch list — pull it so every device sees the same people,
-  // regardless of what this particular device/browser had stored locally.
+  // If Google Sheets is connected, it's the authoritative shared copy of
+  // employees, branches, sales, and checks — pull it so every device sees
+  // the same data, regardless of what this particular device/browser had
+  // stored locally.
   if(APPS_SCRIPT_URL){
     try{
-      const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(()=>controller.abort(), 7000); // don't let a slow Apps Script response block the app
+      const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig', {signal: controller.signal});
+      clearTimeout(timeoutId);
       const json = await res.json();
       if(json && json.ok){
         if(json.users){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
         if(json.branches){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
+        if(json.sales){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
+        if(json.checks){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
       }
-    }catch(e){ console.warn('central config fetch failed, using local copy for this device', e); }
+    }catch(e){ console.warn('central config fetch failed or timed out, using local copy for this device', e); }
   }
 }
 async function safeGet(key){
@@ -486,8 +492,8 @@ async function pushConfigToSheets(key, value){
   }catch(e){ console.warn('pushConfigToSheets failed for '+key+' (saved on this device only)', e); }
 }
 async function saveUsers(){ await cloudSet('sst_users', DB.users); pushConfigToSheets('users', DB.users); }
-async function saveSales(){ await cloudSet('sst_sales', DB.sales); }
-async function saveChecks(){ await cloudSet('sst_checks', DB.checks); }
+async function saveSales(){ await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
+async function saveChecks(){ await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
 async function saveBranches(){ await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
 /* =========================================================
@@ -632,7 +638,7 @@ function startSync(){
     renderContent();
     const label = document.getElementById('syncLabel');
     if(label) label.textContent = 'ซิงค์แล้วเมื่อสักครู่';
-  }, 8000);
+  }, 15000); // 15s — balances feeling reasonably current against Apps Script's inherent latency
 }
 
 /* ---------- permission helpers ---------- */
@@ -1502,12 +1508,13 @@ function renderSettings(){
         <div class="field full"><label>Apps Script Web App URL</label><input type="text" id="gsUrl" value="${escapeHtml(APPS_SCRIPT_URL||'')}" placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
         <div class="field" style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%" onclick="saveGsUrlFromForm()">บันทึกการเชื่อมต่อ</button></div>
       </div>
-      <div class="helper-text">${APPS_SCRIPT_URL ? '🟢 เชื่อมต่อแล้ว' : '⚪ ยังไม่ได้เชื่อมต่อ — ข้อมูลจะบันทึกในแอปเท่านั้น (ยังใช้งานได้ปกติ)'}</div>
+      <div class="helper-text">${APPS_SCRIPT_URL ? '🟢 เชื่อมต่อแล้ว — ข้อมูลพนักงาน/สาขา/ยอดขาย/เช็ครับ ซิงค์ผ่าน Google Sheets ทุก ~15 วินาที' : '⚪ ยังไม่ได้เชื่อมต่อ — ข้อมูลจะบันทึกในแอปเท่านั้น (ยังใช้งานได้ปกติ)'}</div>
       ${APPS_SCRIPT_URL ? `
       <div class="section-divider"></div>
-      <div class="locked-notice" style="background:var(--green-soft);color:var(--green-dark)">${peakIcon(13)} การเชื่อมต่อจะดึงรายชื่อจาก Sheets เข้ามาอัตโนมัติ แต่ <b>จะไม่ส่งรายชื่อที่มีอยู่ในเครื่องนี้ขึ้นไปเองจนกว่าจะมีการแก้ไข</b> — ถ้าเครื่องนี้มีรายชื่อพนักงานที่ถูกต้อง/ล่าสุดอยู่แล้ว (เช่น เครื่องที่ใช้เพิ่มพนักงานเป็นประจำ) กดปุ่มด้านล่างเพื่อส่งขึ้นไปเป็นข้อมูลกลางทันที</div>
-      <button class="btn btn-outline btn-sm" onclick="pushLocalUsersAndBranchesToSheets()">🔼 ส่งรายชื่อพนักงาน/สาขาของเครื่องนี้ขึ้น Google Sheets ตอนนี้</button>
-      <p class="helper-text">คำเตือน: การกดปุ่มนี้จะ<b>เขียนทับ</b>รายชื่อกลางใน Google Sheets ด้วยรายชื่อของเครื่องนี้ — ใช้เฉพาะเมื่อมั่นใจว่าเครื่องนี้มีรายชื่อล่าสุด/ถูกต้องที่สุด</p>
+      <div class="locked-notice" style="background:var(--green-soft);color:var(--green-dark)">${peakIcon(13)} การเชื่อมต่อจะดึงข้อมูล (พนักงาน/สาขา/ยอดขาย/เช็ค) จาก Sheets เข้ามาอัตโนมัติ แต่ <b>จะไม่ส่งข้อมูลที่มีอยู่ในเครื่องนี้ขึ้นไปเองจนกว่าจะมีการแก้ไข</b> — ถ้าเครื่องนี้มีข้อมูลล่าสุดอยู่แล้ว กดปุ่มด้านล่างเพื่อส่งขึ้นไปเป็นข้อมูลกลางทันที</div>
+      <button class="btn btn-outline btn-sm" onclick="pushLocalUsersAndBranchesToSheets()">🔼 ส่งข้อมูลของเครื่องนี้ขึ้น Google Sheets ตอนนี้</button>
+      <p class="helper-text">คำเตือน: การกดปุ่มนี้จะ<b>เขียนทับ</b>ข้อมูลกลางใน Google Sheets ด้วยข้อมูลของเครื่องนี้ — ใช้เฉพาะเมื่อมั่นใจว่าเครื่องนี้มีข้อมูลล่าสุด/ถูกต้องที่สุด</p>
+      <p class="helper-text">หมายเหตุ: การซิงค์ผ่าน Google Sheets ไม่ใช่แบบเรียลไทม์ทันที จะมีความหน่วงประมาณ 10-20 วินาทีตามธรรมชาติของระบบ Google Apps Script</p>
       ` : ''}
     </div>
     ${APPS_SCRIPT_URL ? renderDriveUploadBlock() : ''}
@@ -1579,11 +1586,13 @@ async function bulkUploadChecksToDrive(){
 }
 async function pushLocalUsersAndBranchesToSheets(){
   if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
-  if(!confirm('ยืนยันส่งรายชื่อพนักงาน/สาขาของเครื่องนี้ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
+  if(!confirm('ยืนยันส่งข้อมูลของเครื่องนี้ (พนักงาน, สาขา, ยอดขาย, เช็ครับ) ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
   try{
     await pushConfigToSheets('users', DB.users);
     await pushConfigToSheets('branches', DB.branches);
-    toast('ส่งรายชื่อพนักงาน/สาขาขึ้น Google Sheets เรียบร้อย');
+    await pushConfigToSheets('sales', DB.sales);
+    await pushConfigToSheets('checks', DB.checks);
+    toast('ส่งข้อมูลของเครื่องนี้ขึ้น Google Sheets เรียบร้อย');
   }catch(e){
     console.error('pushLocalUsersAndBranchesToSheets failed', e);
     toast('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่', true);
