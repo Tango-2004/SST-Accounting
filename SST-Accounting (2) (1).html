@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SST Accounting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F7F1;
+  --surface:#FFFFFF;
+  --surface-soft:#F0F3EA;
+  --ink:#1E2A22;
+  --ink-soft:#5C6B60;
+  --ink-faint:#93A092;
+  --red:#C1392B;
+  --red-dark:#9B2E22;
+  --red-soft:#FBEAE7;
+  --green:#79B144;
+  --green-dark:#4C7A2A;
+  --green-soft:#EEF5E4;
+  --border:#E2E6DC;
+  --warn:#D98C2B;
+  --warn-soft:#FBF1E2;
+  --radius:12px;
+  --shadow: 0 2px 10px rgba(30,42,34,0.06), 0 1px 2px rgba(30,42,34,0.04);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Sarabun',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Kanit',sans-serif;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+a{color:inherit;}
+::selection{background:var(--green-soft);}
+
+/* ===== Peak motif ===== */
+.peak-mark{
+  display:inline-block;width:16px;height:12px;position:relative;flex-shrink:0;
+}
+.peak-mark svg{width:100%;height:100%;display:block;}
+
+/* ===== Login screen ===== */
+#loginScreen{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(121,177,68,0.10), transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(193,57,43,0.08), transparent 40%),
+    var(--bg);
+  padding:24px;
+}
+.login-card{
+  width:100%;max-width:380px;
+  background:var(--surface);
+  border-radius:20px;
+  box-shadow:0 20px 50px rgba(30,42,34,0.12);
+  padding:40px 32px 32px;
+  text-align:center;
+  border:1px solid var(--border);
+  position:relative;
+  overflow:hidden;
+}
+.login-card::before{
+  content:"";position:absolute;top:-60px;left:50%;transform:translateX(-50%);
+  width:220px;height:220px;
+  background:conic-gradient(from 180deg at 50% 100%, var(--green) 0deg, var(--green-dark) 40deg, transparent 41deg, transparent 319deg, var(--red-dark) 320deg, var(--red) 360deg);
+  opacity:0.07;border-radius:50%;
+}
+.login-logo{width:88px;height:auto;margin:0 auto 6px;display:block;position:relative;}
+.login-brand{font-family:'Kanit';font-weight:800;font-size:22px;letter-spacing:0.5px;color:var(--ink);margin:8px 0 2px;}
+.login-brand span{color:var(--red);}
+.login-sub{font-size:13px;color:var(--ink-soft);margin-bottom:28px;}
+.field{text-align:left;margin-bottom:14px;}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+.field input,.field select{
+  width:100%;padding:11px 13px;border-radius:9px;border:1.5px solid var(--border);
+  font-size:14.5px;background:var(--surface-soft);transition:border-color .15s, background .15s;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green);background:#fff;}
+.btn{
+  border:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14.5px;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  transition:transform .1s, box-shadow .15s, background .15s;
+}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);color:#fff;width:100%;padding:12px;font-size:15px;box-shadow:0 6px 16px rgba(76,122,42,0.28);}
+.btn-primary:hover{box-shadow:0 8px 20px rgba(76,122,42,0.38);}
+.btn-outline{background:#fff;border:1.5px solid var(--border);color:var(--ink);}
+.btn-outline:hover{border-color:var(--ink-faint);}
+.btn-red{background:var(--red);color:#fff;}
+.btn-red:hover{background:var(--red-dark);}
+.btn-ghost{background:transparent;color:var(--ink-soft);}
+.btn-ghost:hover{background:var(--surface-soft);}
+.btn-sm{padding:6px 11px;font-size:13px;border-radius:7px;}
+.login-error{background:var(--red-soft);color:var(--red-dark);font-size:13px;padding:9px 12px;border-radius:8px;margin-bottom:14px;text-align:left;display:none;}
+.login-hint{margin-top:20px;font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
+
+/* ===== App shell ===== */
+#appShell{display:none;min-height:100vh;}
+.sidebar{
+  width:236px;flex-shrink:0;background:var(--ink);
+  background:linear-gradient(180deg, #1E2A22 0%, #16201A 100%);
+  color:#fff;display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;bottom:0;overflow-y:auto;
+}
+.sidebar-brand{
+  display:flex;align-items:center;gap:10px;padding:22px 20px 18px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.sidebar-brand img{width:34px;height:auto;}
+.sidebar-brand-text{font-family:'Kanit';font-weight:700;font-size:16.5px;letter-spacing:0.3px;}
+.sidebar-brand-text .accent{color:#9CCB6A;}
+.nav{padding:14px 12px;flex:1;}
+.nav-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);padding:14px 10px 6px;font-weight:600;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;
+  font-size:14px;color:rgba(255,255,255,0.72);margin-bottom:2px;position:relative;
+  transition:background .15s,color .15s;
+}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:#fff;}
+.nav-item.active{background:rgba(121,177,68,0.16);color:#fff;font-weight:600;}
+.nav-item.active::before{
+  content:"";position:absolute;left:-12px;top:50%;transform:translateY(-50%);
+  width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:6px solid #9CCB6A;
+}
+.nav-item .peak-mark{opacity:0.9;}
+.sidebar-footer{padding:14px 16px 18px;border-top:1px solid rgba(255,255,255,0.08);}
+.side-user{display:flex;align-items:center;gap:9px;margin-bottom:10px;}
+.side-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green-dark));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+.side-user-name{font-size:13.5px;font-weight:600;line-height:1.2;}
+.side-user-role{font-size:11px;color:rgba(255,255,255,0.45);}
+
+.main{margin-left:236px;flex:1;display:flex;flex-direction:column;min-height:100vh;width:calc(100% - 236px);}
+.topbar{
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:16px 28px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:20;
+}
+.topbar-title{font-family:'Kanit';font-weight:700;font-size:19px;display:flex;align-items:center;gap:9px;}
+.topbar-sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;font-family:'Sarabun';font-weight:400;}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--green-dark);background:var(--green-soft);padding:4px 10px;border-radius:20px;font-weight:600;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+.content{padding:26px 28px 60px;flex:1;}
+
+/* mobile nav */
+.mobile-topbar{display:none;}
+.hamburger{width:22px;height:16px;position:relative;background:none;border:none;padding:0;}
+.hamburger span{position:absolute;left:0;width:100%;height:2px;background:currentColor;border-radius:2px;}
+.hamburger span:nth-child(1){top:0;}
+.hamburger span:nth-child(2){top:7px;}
+.hamburger span:nth-child(3){top:14px;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:29;}
+
+/* ===== Cards / tables ===== */
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:22px;margin-bottom:20px;}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.card-title{font-family:'Kanit';font-weight:600;font-size:16.5px;display:flex;align-items:center;gap:8px;}
+.card-title .peak-mark{opacity:0.85;}
+.pill-tabs{display:inline-flex;background:var(--surface-soft);border-radius:9px;padding:3px;gap:2px;}
+.pill-tab{padding:7px 14px;border-radius:7px;font-size:13px;font-weight:600;color:var(--ink-soft);border:none;background:transparent;}
+.pill-tab.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+
+.grid{display:grid;gap:14px;}
+.grid-3{grid-template-columns:repeat(3,1fr);}
+.grid-2{grid-template-columns:repeat(2,1fr);}
+@media(max-width:760px){.grid-3,.grid-2{grid-template-columns:1fr;}}
+
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+.stat-card .label{font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+.stat-card .value{font-family:'Kanit';font-size:24px;font-weight:700;}
+.stat-card.accent-green .value{color:var(--green-dark);}
+.stat-card.accent-red .value{color:var(--red-dark);}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th{
+  text-align:left;padding:10px 12px;background:var(--surface-soft);color:var(--ink-soft);
+  font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.4px;
+  position:sticky;top:0;
+}
+th:first-child{border-radius:8px 0 0 8px;}
+th:last-child{border-radius:0 8px 8px 0;}
+td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--surface-soft);}
+.table-wrap{overflow-x:auto;border-radius:8px;}
+.empty-state{text-align:center;padding:44px 20px;color:var(--ink-faint);}
+.empty-state .peak-mark{width:26px;height:20px;opacity:0.3;margin-bottom:10px;}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+.badge-cash{background:var(--green-soft);color:var(--green-dark);}
+.badge-credit{background:#E7EEF6;color:#2E5C8A;}
+.badge-transfer{background:#F1E9F6;color:#6B3F8A;}
+.badge-deposit{background:var(--warn-soft);color:#95611A;}
+.badge-check{background:var(--red-soft);color:var(--red-dark);}
+.badge-hs{background:var(--green-soft);color:var(--green-dark);}
+.badge-iv{background:var(--red-soft);color:var(--red-dark);}
+.badge-status-pending{background:var(--warn-soft);color:#95611A;}
+.badge-status-deposited{background:#E7EEF6;color:#2E5C8A;}
+.badge-status-cleared{background:var(--green-soft);color:var(--green-dark);}
+.badge-billed{background:var(--green-soft);color:var(--green-dark);}
+.badge-notbilled{background:var(--warn-soft);color:#95611A;}
+
+/* HS / IV type styling for clear visual distinction */
+.type-card{border-left-width:5px;border-left-style:solid;}
+.type-card.type-hs{border-left-color:var(--green);}
+.type-card.type-iv{border-left-color:var(--red);}
+.pill-tab.type-hs{color:var(--green-dark);}
+.pill-tab.type-hs.active{background:var(--green-soft);color:var(--green-dark);}
+.pill-tab.type-iv{color:var(--red-dark);}
+.pill-tab.type-iv.active{background:var(--red-soft);color:var(--red-dark);}
+.type-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;font-family:'Kanit';font-weight:700;font-size:13px;}
+.type-chip.type-hs{background:var(--green-soft);color:var(--green-dark);}
+.type-chip.type-iv{background:var(--red-soft);color:var(--red-dark);}
+
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.form-grid .full{grid-column:1/-1;}
+.pay-options{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+@media(max-width:640px){.pay-options{grid-template-columns:repeat(3,1fr);}}
+.pay-opt{
+  border:1.5px solid var(--border);border-radius:9px;padding:10px 6px;text-align:center;
+  font-size:12px;font-weight:600;color:var(--ink-soft);background:#fff;position:relative;
+}
+.pay-opt.selected{border-color:var(--green);border-width:2px;background:var(--green-soft);color:var(--green-dark);}
+.pay-opt.selected::after{content:"✓";position:absolute;top:4px;right:6px;font-size:11px;color:var(--green-dark);font-weight:700;}
+.pay-opt .ic{font-size:18px;display:block;margin-bottom:4px;}
+
+.perm-table td{padding:7px 10px;}
+.check-list-actions{display:flex;gap:8px;}
+.toggle{position:relative;width:38px;height:22px;flex-shrink:0;}
+.toggle input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;}
+.toggle .track{position:absolute;inset:0;background:var(--border);border-radius:20px;transition:.15s;}
+.toggle .thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.toggle input:checked + .track{background:var(--green);}
+.toggle input:checked + .track .thumb{transform:translateX(16px);}
+
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(20,28,22,0.55);z-index:100;align-items:center;justify-content:center;padding:20px;}
+.modal{background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 30px 60px rgba(0,0,0,0.25);}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-title{font-family:'Kanit';font-weight:600;font-size:17px;}
+.modal-body{padding:22px 24px;}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+.modal-close{background:none;border:none;font-size:20px;color:var(--ink-faint);line-height:1;}
+
+.preview-box{background:var(--surface-soft);border-radius:10px;padding:16px;border:1px dashed var(--ink-faint);}
+.preview-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px;border-bottom:1px solid var(--border);}
+.preview-row:last-child{border-bottom:none;}
+.preview-row .k{color:var(--ink-soft);}
+.preview-row .v{font-weight:600;text-align:right;}
+
+.toast-wrap{position:fixed;bottom:22px;right:22px;z-index:200;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--ink);color:#fff;padding:12px 18px;border-radius:9px;font-size:13.5px;box-shadow:0 8px 20px rgba(0,0,0,0.25);display:flex;align-items:center;gap:8px;animation:toastin .2s ease;}
+.toast.err{background:var(--red-dark);}
+@keyframes toastin{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+@media(max-width:900px){
+  .toast-wrap{left:14px;right:14px;bottom:14px;align-items:stretch;}
+  .toast{width:100%;justify-content:center;text-align:center;font-weight:600;font-size:14px;}
+}
+
+.locked-notice{display:flex;align-items:center;gap:8px;background:var(--warn-soft);color:#95611A;padding:9px 13px;border-radius:8px;font-size:13px;margin-bottom:14px;}
+.filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+.filter-bar input,.filter-bar select{padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:13.5px;background:#fff;}
+.filter-bar label{font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-right:4px;}
+
+.check-thumb{width:52px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--border);cursor:pointer;}
+.upload-box{border:1.5px dashed var(--ink-faint);border-radius:10px;padding:18px;text-align:center;color:var(--ink-soft);font-size:13px;background:var(--surface-soft);cursor:pointer;}
+.upload-box.has-image{padding:8px;}
+.upload-box img{max-width:100%;max-height:140px;border-radius:6px;}
+
+.settings-block{margin-bottom:24px;}
+.emp-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;}
+.emp-avatar{width:34px;height:34px;border-radius:50%;background:var(--surface-soft);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--ink-soft);flex-shrink:0;}
+.emp-meta{flex:1;min-width:0;}
+.emp-name{font-weight:600;font-size:14px;}
+.emp-sub{font-size:12px;color:var(--ink-soft);}
+
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%);transition:transform .2s;z-index:30;}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;width:100%;}
+  .mobile-topbar{
+    display:flex;align-items:center;gap:14px;background:#fff;border-bottom:1px solid var(--border);
+    padding:14px 18px;position:sticky;top:0;z-index:15;
+  }
+  .mobile-topbar .brand{font-family:'Kanit';font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .mobile-topbar img{width:24px;}
+  .topbar{padding:14px 18px;}
+  .content{padding:18px 16px 50px;}
+  .sidebar-overlay.open{display:block;}
+}
+@media print{
+  .sidebar,.topbar,.mobile-topbar,.no-print{display:none !important;}
+  .main{margin-left:0 !important;width:100% !important;}
+  body{background:#fff;}
+}
+.print-only{display:none;}
+@media print{.print-only{display:block;}}
+
+.helper-text{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+.section-divider{height:1px;background:var(--border);margin:22px 0;}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-card">
+    <img class="login-logo" src="data:image/jpeg;base64,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" alt="S.S.T logo">
+    <div class="login-brand">SST <span>Accounting</span></div>
+    <div class="login-sub">ระบบบัญชีภายในบริษัท · เข้าสู่ระบบด้วยรหัสพนักงาน</div>
+    <div class="login-error" id="loginError"></div>
+    <div class="field">
+      <label>รหัสผู้ใช้งาน (User ID)</label>
+      <input type="text" id="loginId" placeholder="เช่น admin หรือ emmy" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="loginPass" placeholder="รหัสผ่าน" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="handleLogin()">เข้าสู่ระบบ</button>
+    <div class="login-hint">บัญชีทดลองผู้ดูแลระบบ: <b>admin</b> / <b>Admin888</b><br>(กรุณาเปลี่ยนรหัสผ่านทันทีหลังเข้าใช้งานครั้งแรก)</div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="appShell">
+  <div class="sidebar-overlay no-print" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+  <aside class="sidebar no-print" id="sidebar">
+    <div class="sidebar-brand">
+      <img src="data:image/jpeg;base64,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" alt="logo">
+      <div class="sidebar-brand-text">SST <span class="accent">Accounting</span></div>
+    </div>
+    <nav class="nav" id="navList"></nav>
+    <div class="sidebar-footer">
+      <div class="side-user">
+        <div class="side-avatar" id="sideAvatar">A</div>
+        <div>
+          <div class="side-user-name" id="sideUserName">-</div>
+          <div class="side-user-role" id="sideUserRole">-</div>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:100%" onclick="logout()">ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="mobile-topbar no-print">
+      <button class="hamburger" onclick="toggleSidebar(true)"><span></span><span></span><span></span></button>
+      <div class="brand"><img src="data:image/jpeg;base64,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">SST Accounting</div>
+    </div>
+    <div class="topbar no-print">
+      <div>
+        <div class="topbar-title" id="pageTitle">Dashboard</div>
+        <div class="topbar-sub" id="pageSub"></div>
+      </div>
+      <div class="sync-pill" id="syncPill"><span class="sync-dot"></span> <span id="syncLabel">ซิงค์ข้อมูลล่าสุด</span></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- generic modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script>
+/* =========================================================
+   SST ACCOUNTING — prototype app
+   Data persistence: window.storage (shared = true) so every
+   device / user of this app sees the same company data.
+   ========================================================= */
+
+const PAY_TYPES = [
+  {id:'cash', label:'เงินสด', icon:'💵', badge:'badge-cash'},
+  {id:'credit_card', label:'บัตรเครดิต', icon:'💳', badge:'badge-credit'},
+  {id:'transfer', label:'โอนจ่าย', icon:'🏦', badge:'badge-transfer'},
+  {id:'deposit', label:'มัดจำ', icon:'📥', badge:'badge-deposit'},
+  {id:'check', label:'เช็ค', icon:'🧾', badge:'badge-check'},
+];
+const BANKS = ['KBANK','BBL'];
+const CHECK_BANKS = ['KBANK','BBL','SCB','KTB','BAY','TMBTHANACHART','GSB','CIMB','UOB'];
+const TABS = [
+  {id:'dashboard', label:'ภาพรวม', group:'หลัก'},
+  {id:'tab1', label:'รายงานการขาย', group:'หลัก'},
+  {id:'tab2', label:'ยอดรวมเงินสด (HS/IV)', group:'หลัก'},
+  {id:'tab3', label:'เช็ครับลูกหนี้', group:'หลัก'},
+  {id:'tab3cal', label:'ปฏิทินเช็ครับ', group:'หลัก'},
+  {id:'settings', label:'ตั้งค่าสิทธิ์', group:'ผู้ดูแลระบบ', adminOnly:true},
+];
+
+let DB = { users: [], sales: [], checks: [], branches: [] };
+let CURRENT = null; // logged in user object
+let ACTIVE_TAB = 'dashboard';
+let TAB2_SUBVIEW = 'HS';
+let TAB1_CUSTVIEW = 'general';
+let sidebarOpen = false;
+let syncTimer = null;
+let HAS_CLOUD_SYNC = false; // true only when window.storage (cross-device sync) is actually available
+
+/* ---------- storage helpers -----------------------------------------
+   This app always saves to THIS browser's local storage first (which
+   always works, everywhere, instantly). If it's running inside a
+   Claude artifact view where window.storage (cross-device sync) is
+   available, it ALSO mirrors every save there so other devices see
+   it too. If window.storage is missing or fails, the save still
+   succeeds locally — it just won't be visible on other devices until
+   that's available again. Nothing is ever silently lost.
+   ---------------------------------------------------------------- */
+function lsGet(key){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ console.warn('localStorage read failed for', key, e); return null; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch(e){ console.warn('localStorage write failed for', key, e); return false; }
+}
+async function loadDB(){
+  const u = await safeGet('sst_users');
+  const s = await safeGet('sst_sales');
+  const c = await safeGet('sst_checks');
+  const b = await safeGet('sst_branches');
+  DB.users = u || defaultUsers();
+  DB.sales = s || [];
+  DB.checks = c || [];
+  DB.branches = b || defaultBranches();
+  if(!u){ await saveUsers(); }
+  if(!b){ await saveBranches(); }
+  // If Google Sheets is connected, it's the authoritative shared copy of the
+  // employee/branch list — pull it so every device sees the same people,
+  // regardless of what this particular device/browser had stored locally.
+  if(APPS_SCRIPT_URL){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig');
+      const json = await res.json();
+      if(json && json.ok){
+        if(json.users){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
+        if(json.branches){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
+      }
+    }catch(e){ console.warn('central config fetch failed, using local copy for this device', e); }
+  }
+}
+async function safeGet(key){
+  // Try cloud (cross-device) copy first if available, but never let it block —
+  // always fall back to this browser's local copy.
+  if(window.storage){
+    try{
+      const r = await window.storage.get(key, true);
+      const val = r ? JSON.parse(r.value) : null;
+      if(val!==null){ lsSet(key, val); return val; }
+    }catch(e){ console.warn('cloud read failed for '+key+', using local copy instead', e); }
+  }
+  return lsGet(key);
+}
+async function cloudSet(key, value){
+  const localOk = lsSet(key, value);
+  if(window.storage){
+    try{ await window.storage.set(key, JSON.stringify(value), true); }
+    catch(e){ console.warn('cloud sync failed for '+key+' (still saved on this device)', e); }
+  }
+  if(!localOk){
+    // Extremely rare (storage full/disabled) — surface it, don't fail silently.
+    throw new Error('ไม่สามารถบันทึกข้อมูลลงเครื่องนี้ได้ (พื้นที่จัดเก็บอาจเต็มหรือถูกปิดใช้งาน)');
+  }
+}
+async function pushConfigToSheets(key, value){
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveConfig', data:{ key, value: JSON.stringify(value) } })
+    });
+  }catch(e){ console.warn('pushConfigToSheets failed for '+key+' (saved on this device only)', e); }
+}
+async function saveUsers(){ await cloudSet('sst_users', DB.users); pushConfigToSheets('users', DB.users); }
+async function saveSales(){ await cloudSet('sst_sales', DB.sales); }
+async function saveChecks(){ await cloudSet('sst_checks', DB.checks); }
+async function saveBranches(){ await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
+
+/* =========================================================
+   GOOGLE SHEETS / DRIVE BRIDGE
+   Sheet: https://docs.google.com/spreadsheets/d/11tyyirqrzBd1pWAz6NcsKg2XKc-Wl0PRJZ4wmiK59y0/edit
+   Drive folder: https://drive.google.com/drive/folders/123WwCIWpYx8xkbP3ba0kx_4tIJ_eZWaV
+   These IDs are already baked into the Apps Script code (see the
+   Google-Sheets-Drive-Integration.md file). Once deployed, paste the
+   Web App URL below (or into Settings > Google Sync in the app).
+   This bridge works regardless of window.storage availability —
+   it's a plain fetch() to your deployed Apps Script.
+   ========================================================= */
+let APPS_SCRIPT_URL = '';
+async function loadAppsScriptUrl(){
+  APPS_SCRIPT_URL = (await safeGet('sst_apps_script_url')) || '';
+}
+async function saveAppsScriptUrl(url){
+  APPS_SCRIPT_URL = url;
+  await cloudSet('sst_apps_script_url', url);
+}
+function thaiMonthYearFolder(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyThai = d.getFullYear()+543;
+  return mm+'_'+yyThai;
+}
+async function pushSaleToSheet(rec){
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveSale', data: rec })
+    });
+  }catch(e){ console.error('pushSaleToSheet failed', e); toast('บันทึกในแอปสำเร็จ แต่ส่งเข้า Google Sheet ไม่สำเร็จ (ตรวจสอบการเชื่อมต่อ)', true); }
+}
+async function pushCheckImageToDrive(rec, fullImageDataUrl, silent){
+  if(!APPS_SCRIPT_URL || !fullImageDataUrl) return;
+  try{
+    const base64 = fullImageDataUrl.split(',')[1];
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({
+        action:'saveCheckImage',
+        data:{
+          base64,
+          filename: (rec.checkNo||'check')+'_'+rec.id+'.jpg',
+          monthYearThai: thaiMonthYearFolder(rec.checkDate || rec.dateReceived)
+        }
+      })
+    });
+    const json = await res.json();
+    if(json && json.url){
+      rec.driveUrl = json.url;
+      await saveChecks();
+    }
+  }catch(e){ console.error('pushCheckImageToDrive failed', e); if(!silent) toast('บันทึกเช็คในแอปสำเร็จ แต่อัปโหลดรูปเข้า Drive ไม่สำเร็จ', true); }
+}
+
+function defaultUsers(){
+  return [
+    { id:'admin', name:'Admin', pass:'Admin888', role:'admin', branch:'สำนักงานใหญ่', tabs:{tab1:true,tab2:true,tab3:true}, hsre:{HS:true,IV:true} },
+    { id:'emmy', name:'เอมมี่ SST', pass:'1234', role:'staff', branch:'สาขา 1', tabs:{tab1:true,tab2:true,tab3:false}, hsre:{HS:true,IV:false} },
+  ];
+}
+function defaultBranches(){
+  return ['สาขา 1', 'สาขา 2'];
+}
+function getBranchList(){
+  const fromUsers = DB.users.filter(u=>u.role==='staff').map(u=>u.branch).filter(Boolean);
+  const all = new Set([...(DB.branches||[]), ...fromUsers]);
+  return [...all].sort((a,b)=>a.localeCompare(b,'th'));
+}
+
+/* ---------- utils ---------- */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function fmtDate(iso){
+  if(!iso) return '-';
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'numeric'});
+}
+function fmtMoney(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function toast(msg, isErr){
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast'+(isErr?' err':'');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(()=>t.remove(), isErr ? 4500 : 3200);
+}
+function peakIcon(size){
+  size = size||14;
+  return `<span class="peak-mark" style="width:${size}px;height:${size*0.78}px"><svg viewBox="0 0 16 12" fill="none"><path d="M8 0L16 12H0L8 0Z" fill="currentColor"/></svg></span>`;
+}
+
+/* ---------- auth ---------- */
+function handleLogin(){
+  const id = document.getElementById('loginId').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const errBox = document.getElementById('loginError');
+  const user = DB.users.find(u => u.id.toLowerCase() === id && u.pass === pass);
+  if(!user){
+    errBox.style.display='block';
+    errBox.textContent = 'รหัสผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
+    return;
+  }
+  errBox.style.display='none';
+  CURRENT = user;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appShell').style.display='block';
+  ACTIVE_TAB = 'dashboard';
+  renderShell();
+  startSync();
+  const pill = document.getElementById('syncPill');
+  if(pill){
+    if(HAS_CLOUD_SYNC){
+      pill.innerHTML = '<span class="sync-dot"></span> <span id="syncLabel">ซิงค์ข้อมูลล่าสุด</span>';
+    } else if(APPS_SCRIPT_URL){
+      pill.style.background = 'var(--green-soft)'; pill.style.color = 'var(--green-dark)';
+      pill.innerHTML = '<span>📊</span> <span id="syncLabel">ซิงค์ผ่าน Google Sheets</span>';
+    } else {
+      pill.style.background = 'var(--warn-soft)'; pill.style.color = '#95611A';
+      pill.innerHTML = '<span>💾</span> <span>บันทึกในเครื่องนี้</span>';
+    }
+  }
+}
+function logout(){
+  CURRENT = null;
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginId').value='';
+  document.getElementById('loginPass').value='';
+  clearInterval(syncTimer);
+}
+function startSync(){
+  clearInterval(syncTimer);
+  if(!HAS_CLOUD_SYNC && !APPS_SCRIPT_URL) return; // nothing to poll — this device is the only copy
+  syncTimer = setInterval(async ()=>{
+    await loadDB();
+    renderContent();
+    const label = document.getElementById('syncLabel');
+    if(label) label.textContent = 'ซิงค์แล้วเมื่อสักครู่';
+  }, 8000);
+}
+
+/* ---------- permission helpers ---------- */
+function canSeeTab(tabId){
+  if(!CURRENT) return false;
+  if(CURRENT.role==='admin') return true;
+  if(tabId==='dashboard') return true;
+  if(tabId==='settings') return false;
+  if(tabId==='tab3cal') return !!CURRENT.tabs.tab3;
+  return !!CURRENT.tabs[tabId];
+}
+
+/* ---------- shell / nav ---------- */
+function toggleSidebar(open){
+  sidebarOpen = open;
+  document.getElementById('sidebar').classList.toggle('open', open);
+  document.getElementById('sidebarOverlay').classList.toggle('open', open);
+}
+function renderShell(){
+  document.getElementById('sideAvatar').textContent = (CURRENT.name||'?').slice(0,1).toUpperCase();
+  document.getElementById('sideUserName').textContent = CURRENT.name;
+  document.getElementById('sideUserRole').textContent = CURRENT.role==='admin' ? 'ผู้ดูแลระบบ' : ('พนักงาน · '+(CURRENT.branch||'-'));
+  const nav = document.getElementById('navList');
+  let html='';
+  let lastGroup=null;
+  TABS.forEach(t=>{
+    if(t.adminOnly && CURRENT.role!=='admin') return;
+    if(!canSeeTab(t.id)) return;
+    if(t.group!==lastGroup){ html+=`<div class="nav-group-label">${t.group}</div>`; lastGroup=t.group; }
+    html+=`<div class="nav-item ${ACTIVE_TAB===t.id?'active':''}" onclick="setTab('${t.id}')">${peakIcon(12)}<span>${t.label}</span></div>`;
+  });
+  nav.innerHTML = html;
+  renderContent();
+}
+function setTab(id){
+  ACTIVE_TAB = id;
+  toggleSidebar(false);
+  renderShell();
+  window.scrollTo(0,0);
+}
+function renderContent(){
+  const titles = {
+    dashboard:['ภาพรวม','สรุปข้อมูลวันนี้ในบริษัท'],
+    tab1:['รายงานการขาย','บันทึกรายการขายประจำวันแยกตามสาขา'],
+    tab2:['ยอดรวมเงินสด (HS / IV)','เงินสด ≥ 1,000 บาท แยกตามเลขที่บิล'],
+    tab3:['เช็ครับลูกหนี้','บันทึกและติดตามเช็คที่รับจากลูกค้า'],
+    tab3cal:['ปฏิทินเช็ครับ','แจ้งเตือนก่อนถึงกำหนดนำเช็คเข้าธนาคาร 10 วัน'],
+    settings:['ตั้งค่าสิทธิ์','จัดการพนักงานและสิทธิ์การเข้าถึง'],
+  };
+  document.getElementById('pageTitle').innerHTML = peakIcon(15)+' '+titles[ACTIVE_TAB][0];
+  document.getElementById('pageSub').textContent = titles[ACTIVE_TAB][1];
+  const el = document.getElementById('content');
+  if(!canSeeTab(ACTIVE_TAB)){ el.innerHTML = renderNoAccess(); return; }
+  if(ACTIVE_TAB==='dashboard') el.innerHTML = renderDashboard();
+  else if(ACTIVE_TAB==='tab1') el.innerHTML = renderTab1();
+  else if(ACTIVE_TAB==='tab2') el.innerHTML = renderTab2();
+  else if(ACTIVE_TAB==='tab3') el.innerHTML = renderTab3();
+  else if(ACTIVE_TAB==='tab3cal') el.innerHTML = renderTab3Cal();
+  else if(ACTIVE_TAB==='settings') el.innerHTML = renderSettings();
+  afterRender();
+}
+function renderNoAccess(){
+  return `<div class="card"><div class="empty-state">${peakIcon(30)}<div>คุณไม่มีสิทธิ์เข้าถึงหน้านี้ กรุณาติดต่อผู้ดูแลระบบ</div></div></div>`;
+}
+function afterRender(){ /* hook for post-render JS if a page needs it */ }
+
+/* ============ modal helpers ============ */
+function openModal(html){
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalBackdrop').style.display='flex';
+}
+function closeModal(){ document.getElementById('modalBackdrop').style.display='none'; document.getElementById('modalBox').innerHTML=''; }
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+function renderDashboard(){
+  const today = todayStr();
+  const mySales = CURRENT.role==='admin' ? DB.sales : DB.sales.filter(s=>s.employeeId===CURRENT.id);
+  const todaySales = mySales.filter(s=>s.date===today);
+  const totalToday = todaySales.reduce((a,b)=>a+Number(b.amount||0),0);
+  const cashToday = todaySales.filter(s=>s.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
+  const checksDue = DB.checks.filter(c=>c.status!=='cleared' && daysBetween(today,c.checkDate)<=10 && daysBetween(today,c.checkDate)>=0);
+
+  let branchBreak = '';
+  if(CURRENT.role==='admin'){
+    const byBranch = {};
+    todaySales.forEach(s=>{ byBranch[s.branch]=(byBranch[s.branch]||0)+Number(s.amount||0); });
+    branchBreak = Object.keys(byBranch).length ? `
+      <div class="card">
+        <div class="card-header"><div class="card-title">${peakIcon()} ยอดขายวันนี้แยกตามสาขา</div></div>
+        <div class="table-wrap"><table><thead><tr><th>สาขา</th><th style="text-align:right">ยอดรวม (บาท)</th></tr></thead><tbody>
+        ${Object.entries(byBranch).map(([b,v])=>`<tr><td>${escapeHtml(b)}</td><td style="text-align:right;font-weight:600">${fmtMoney(v)}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>` : `<div class="card"><div class="empty-state">${peakIcon(26)}<div>ยังไม่มีข้อมูลการขายวันนี้</div></div></div>`;
+  }
+
+  return `
+    <div class="grid grid-3" style="margin-bottom:20px">
+      <div class="stat-card accent-green"><div class="label">ยอดขายวันนี้${CURRENT.role==='admin'?' (ทั้งบริษัท)':''}</div><div class="value">฿ ${fmtMoney(totalToday)}</div></div>
+      <div class="stat-card accent-red"><div class="label">เงินสดวันนี้</div><div class="value">฿ ${fmtMoney(cashToday)}</div></div>
+      <div class="stat-card"><div class="label">เช็คใกล้ครบกำหนด (≤10 วัน)</div><div class="value">${checksDue.length} ใบ</div></div>
+    </div>
+    ${branchBreak}
+    ${checksDue.length? `
+    <div class="card">
+      <div class="card-header"><div class="card-title">${peakIcon()} เช็คที่ใกล้ถึงกำหนดนำเข้าธนาคาร</div></div>
+      <div class="table-wrap"><table><thead><tr><th>บริษัท</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th><th style="text-align:right">จำนวนเงิน</th></tr></thead><tbody>
+      ${checksDue.map(c=>`<tr><td>${escapeHtml(c.company)}</td><td>${escapeHtml(c.checkNo)}</td><td>${fmtDate(c.checkDate)}</td><td style="text-align:right">${fmtMoney(c.amount)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`:''}
+  `;
+}
+
+/* =========================================================
+   TAB 1 — SALES REPORT
+   ========================================================= */
+function renderTab1(){
+  const today = todayStr();
+  const isAdmin = CURRENT.role==='admin';
+  let branches = getBranchList();
+
+  const payFilterOptions = `<option value="">ทุกประเภทชำระ</option>${PAY_TYPES.map(p=>`<option value="${p.id}" ${window.__t1pay===p.id?'selected':''}>${p.icon} ${p.label}</option>`).join('')}`;
+  const filterBar = isAdmin ? `
+    <div class="filter-bar no-print">
+      <label>วันที่</label><input type="date" id="t1Date" value="${today}" onchange="renderShell()">
+      <label>สาขา</label>
+      <select id="t1Branch" onchange="renderShell()">
+        <option value="">ทุกสาขา (รวมยอด)</option>
+        ${branches.map(b=>`<option value="${escapeHtml(b)}" ${window.__t1branch===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
+      </select>
+      <label>ประเภทชำระ</label>
+      <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
+    </div>` : `
+    <div class="filter-bar no-print">
+      <label>วันที่</label><input type="date" id="t1Date" value="${today}" max="${maxAllowedDate()}" onchange="renderShell()">
+      <label>ประเภทชำระ</label>
+      <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
+    </div>
+    <div class="helper-text" style="margin:-8px 0 12px">คุณสามารถบันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้</div>`;
+
+  return `
+    ${filterBar}
+    <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="pill-tabs">
+        <button class="pill-tab ${TAB1_CUSTVIEW==='general'?'active':''}" onclick="TAB1_CUSTVIEW='general';renderShell()">ลูกค้าทั่วไป</button>
+        <button class="pill-tab ${TAB1_CUSTVIEW==='credit'?'active':''}" onclick="TAB1_CUSTVIEW='credit';renderShell()">ลูกค้าเครดิต</button>
+      </div>
+      ${isAdmin?`<button class="btn btn-outline btn-sm" onclick="openCombinedReport()">🖨 พิมพ์รายงานรวมทุกสาขา</button>`:''}
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">${peakIcon()} ${TAB1_CUSTVIEW==='general'?'ตารางบันทึกลูกค้าทั่วไป':'ตารางบันทึกลูกค้าเครดิต'}</div>
+        <button class="btn btn-primary btn-sm no-print" onclick="openSaleForm()">+ เพิ่มรายการ</button>
+      </div>
+      ${renderTab1Table()}
+    </div>
+  `;
+}
+function maxAllowedDate(){
+  // staff can record forward-dated but the date field selected for entry defaults today; no upper cap enforced strictly, keep +365 days
+  const d = new Date(); d.setDate(d.getDate()+365);
+  return d.toISOString().slice(0,10);
+}
+function getTab1FilterDate(){
+  const el = document.getElementById('t1Date');
+  return el ? el.value : todayStr();
+}
+function renderTab1Table(){
+  const date = getTab1FilterDate();
+  const isAdmin = CURRENT.role==='admin';
+  let rows = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW);
+  if(isAdmin){
+    const branchEl = document.getElementById('t1Branch');
+    const branch = branchEl ? branchEl.value : '';
+    window.__t1branch = branch;
+    if(branch) rows = rows.filter(s=>s.branch===branch);
+  } else {
+    rows = rows.filter(s=>s.employeeId===CURRENT.id);
+  }
+  const billCounts = {};
+  rows.forEach(r=>{ billCounts[r.billNo] = (billCounts[r.billNo]||0)+1; });
+  const payEl = document.getElementById('t1Pay');
+  const payFilter = payEl ? payEl.value : '';
+  window.__t1pay = payFilter;
+  if(payFilter) rows = rows.filter(s=>s.paymentType===payFilter);
+  rows.sort((a,b)=>a.no-b.no);
+  if(!rows.length){
+    return `<div class="empty-state">${peakIcon(26)}<div>ยังไม่มีรายการบันทึกในวันที่เลือก</div></div>`;
+  }
+  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const isCredit = TAB1_CUSTVIEW==='credit';
+  return `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th>
+      <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th><th>สถานะวางบิล</th>':''}<th>หมายเหตุ</th>${isAdmin?'<th>สาขา / ผู้บันทึก</th>':''}<th class="no-print"></th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>{
+        const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
+        return `<tr>
+          <td>${r.no}</td>
+          <td>${escapeHtml(r.customerName)}</td>
+          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}</td>
+          <td style="text-align:right">${fmtMoney(r.amount)}</td>
+          <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
+          <td>${r.bank?escapeHtml(r.bank):'-'}</td>
+          ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td><td><span class="badge ${r.billed?'badge-billed':'badge-notbilled'}">${r.billed?'✓ วางบิลแล้ว':'ยังไม่วางบิล'}</span></td>`:''}
+          <td>${r.note?escapeHtml(r.note):'-'}</td>
+          ${isAdmin?`<td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>`:''}
+          <td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
+            ${isCredit?`<button class="btn btn-outline btn-sm" onclick="toggleBilled('${r.id}')">${r.billed?'ยกเลิกวางบิล':'✓ วางบิลแล้ว'}</button>`:''}
+            ${(r.employeeId===CURRENT.id && r.date===todayStr())?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isAdmin?(isCredit?7:5):(isCredit?6:4)}"></td></tr></tfoot>
+  </table></div>`;
+}
+async function toggleBilled(id){
+  const r = DB.sales.find(s=>s.id===id);
+  if(!r) return;
+  r.billed = !r.billed;
+  r.billedDate = r.billed ? todayStr() : null;
+  await saveSales();
+  renderShell();
+  toast(r.billed ? 'บันทึกว่าวางบิลแล้ว' : 'ยกเลิกสถานะวางบิลแล้ว');
+}
+function openCombinedReport(){
+  const date = getTab1FilterDate() || todayStr();
+  const initialBranch = window.__t1branch || '';
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} รายงานรวม (ทั่วไป + เครดิต)</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="combinedReportBody">
+      <div class="filter-bar no-print" id="crFilterRow" style="margin-bottom:14px">
+        <label>วันที่</label><input type="date" id="crDate" value="${date}" onchange="refreshCombinedReport()">
+        <label>สาขา</label>
+        <select id="crBranch" onchange="refreshCombinedReport()">
+          <option value="">ทุกสาขา (แยกให้ในรายงาน)</option>
+          ${getBranchList().map(b=>`<option value="${escapeHtml(b)}" ${initialBranch===b?'selected':''}>${escapeHtml(b)} เท่านั้น</option>`).join('')}
+        </select>
+      </div>
+      <div id="crContent">${buildCombinedReportHtml(date, initialBranch)}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="window.print()">พิมพ์เอกสาร</button>
+    </div>
+  `);
+}
+function refreshCombinedReport(){
+  const dateEl = document.getElementById('crDate');
+  const branchEl = document.getElementById('crBranch');
+  const date = dateEl ? dateEl.value : todayStr();
+  const branch = branchEl ? branchEl.value : '';
+  const content = document.getElementById('crContent');
+  if(content) content.innerHTML = buildCombinedReportHtml(date, branch);
+}
+function buildCombinedReportHtml(date, branchFilter){
+  let daySales = DB.sales.filter(s=>s.date===date);
+  if(branchFilter) daySales = daySales.filter(s=>s.branch===branchFilter);
+  if(!daySales.length){
+    return `<div class="empty-state">${peakIcon(24)}<div>ไม่มีข้อมูลการขายในวันที่เลือก${branchFilter?' สำหรับ '+escapeHtml(branchFilter):''}</div></div>`;
+  }
+  const listedBranches = getBranchList();
+  const branchesWithData = listedBranches.filter(b=>daySales.some(s=>s.branch===b));
+  const extraBranches = [...new Set(daySales.map(s=>s.branch))].filter(b=>!listedBranches.includes(b));
+  const allBranches = branchFilter ? [branchFilter] : [...branchesWithData, ...extraBranches];
+  let grand = 0;
+  let html = `<h3 style="font-family:'Kanit';margin:0 0 4px">SST Accounting — ${branchFilter?'รายงาน '+escapeHtml(branchFilter):'รายงานรวมทุกสาขา'}</h3><p class="helper-text" style="margin-top:0">วันที่ ${fmtDate(date)}</p>`;
+  allBranches.forEach(branch=>{
+    const branchSales = daySales.filter(s=>s.branch===branch);
+    const general = branchSales.filter(s=>s.customerType==='general');
+    const credit = branchSales.filter(s=>s.customerType==='credit');
+    const branchTotal = branchSales.reduce((a,b)=>a+Number(b.amount||0),0);
+    grand += branchTotal;
+    html += `<div class="section-divider"></div>
+      <h3 style="font-family:'Kanit';margin-bottom:2px">${escapeHtml(branch)}</h3>
+      <p class="helper-text" style="margin-top:0">ยอดรวมสาขานี้: ฿ ${fmtMoney(branchTotal)}</p>
+      ${renderMiniSalesTable(general, 'ลูกค้าทั่วไป')}
+      ${renderMiniSalesTable(credit, 'ลูกค้าเครดิต')}
+    `;
+  });
+  html += `<div class="section-divider"></div><div style="text-align:right;font-family:'Kanit';font-weight:700;font-size:16px">ยอดรวมทั้งหมดทุกสาขา: ฿ ${fmtMoney(grand)}</div>`;
+  return html;
+}
+function renderMiniSalesTable(rows, label){
+  if(!rows.length) return `<p class="helper-text">${label}: ไม่มีรายการ</p>`;
+  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+  return `<div style="margin-bottom:14px">
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">${label} (รวม ฿ ${fmtMoney(total)})</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th></tr></thead>
+      <tbody>${rows.map(r=>{
+        const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
+        return `<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${pt?pt.icon+' '+pt.label:'-'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+function deleteSale(id){
+  const idx = DB.sales.findIndex(s=>s.id===id);
+  if(idx<0) return;
+  const rec = DB.sales[idx];
+  if(rec.date !== todayStr() && CURRENT.role!=='admin'){ toast('ไม่สามารถแก้ไขรายการย้อนหลังได้', true); return; }
+  if(!confirm('ยืนยันลบรายการนี้?')) return;
+  DB.sales.splice(idx,1);
+  saveSales();
+  renderShell();
+  toast('ลบรายการแล้ว');
+}
+function openSaleForm(prefill){
+  prefill = prefill || {};
+  window.__selectedPayType = null; // always start unselected so payment type must be chosen explicitly
+  const date = getTab1FilterDate() || todayStr();
+  if(CURRENT.role!=='admin' && date < todayStr()){
+    toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
+  }
+  const myBranch = CURRENT.role==='admin' ? '' : CURRENT.branch;
+  const existingCount = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW && (CURRENT.role==='admin'||s.employeeId===CURRENT.id)).length;
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย'} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      ${prefill.billNo?`<div class="locked-notice">${peakIcon(13)} กำลังเพิ่มการชำระอีกช่องทางสำหรับบิลเลขที่ "${escapeHtml(prefill.billNo)}" — กรอกเฉพาะยอดและช่องทางที่เหลือ</div>`:''}
+      <div class="form-grid">
+        <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${existingCount+1}"></div>
+        <div class="field"><label>วันที่บันทึก</label><input type="date" id="fDate" value="${date}" ${CURRENT.role!=='admin'?'min="'+todayStr()+'"':''}></div>
+        <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="fCustomer" placeholder="ชื่อลูกค้า" value="${escapeHtml(prefill.customerName||'')}"></div>
+        <div class="field"><label>เลขที่บิล</label><input type="text" id="fBill" placeholder="เช่น HS0001 / IV0002" value="${escapeHtml(prefill.billNo||'')}"></div>
+        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01"></div>
+        <div class="field full">
+          <label>ประเภทการชำระเงิน</label>
+          <p class="helper-text" style="margin-top:0">ถ้าลูกค้าจ่ายมากกว่า 1 ช่องทาง (เช่น เงินสด + โอน) ให้บันทึกแยกเป็นคนละแถวโดยใช้เลขที่บิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติ</p>
+          <div class="pay-options" id="payOptions">
+            ${PAY_TYPES.map(p=>`<div class="pay-opt" data-id="${p.id}" onclick="selectPayType('${p.id}')"><span class="ic">${p.icon}</span>${p.label}</div>`).join('')}
+          </div>
+        </div>
+        <div class="field" id="bankField" style="display:none"><label>ธนาคารที่ลูกค้าโอนเข้า</label>
+          <select id="fBank"><option value="">เลือกธนาคาร</option>${BANKS.map(b=>`<option value="${b}">${b}</option>`).join('')}</select>
+        </div>
+        ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30"></div>`:''}
+        <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${prefill.billNo?'ชำระแยกช่องทาง':''}"></div>
+        ${CURRENT.role==='admin'?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-outline" onclick="previewSale()">ดูตัวอย่าง</button>
+      <button class="btn btn-primary" onclick="submitSale()">บันทึก</button>
+    </div>
+  `);
+}
+window.__selectedPayType = null;
+function selectPayType(id){
+  window.__selectedPayType = id;
+  document.querySelectorAll('.pay-opt').forEach(el=>el.classList.toggle('selected', el.dataset.id===id));
+  document.getElementById('bankField').style.display = (id==='transfer') ? 'block' : 'none';
+}
+function collectSaleForm(){
+  return {
+    no: Number(document.getElementById('fNo').value)||1,
+    date: document.getElementById('fDate').value || todayStr(),
+    customerName: document.getElementById('fCustomer').value.trim(),
+    billNo: document.getElementById('fBill').value.trim(),
+    amount: Number(document.getElementById('fAmount').value)||0,
+    paymentType: window.__selectedPayType,
+    bank: window.__selectedPayType==='transfer' ? document.getElementById('fBank').value : '',
+    note: document.getElementById('fNote').value.trim(),
+    branch: CURRENT.role==='admin' ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
+    creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
+  };
+}
+function validateSale(f){
+  if(!f.customerName) return {msg:'กรุณากรอกชื่อลูกค้า', field:'fCustomer'};
+  if(!f.billNo) return {msg:'กรุณากรอกเลขที่บิล', field:'fBill'};
+  if(!f.amount || f.amount<=0) return {msg:'กรุณากรอกยอดเงินให้ถูกต้อง', field:'fAmount'};
+  if(!f.paymentType) return {msg:'กรุณาเลือกประเภทการชำระเงิน', field:'payOptions'};
+  if(f.paymentType==='transfer' && !f.bank) return {msg:'กรุณาเลือกธนาคาร', field:'fBank'};
+  return null;
+}
+function flagInvalidField(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const target = (id==='payOptions') ? el : el;
+  target.style.outline = '2.5px solid var(--red)';
+  target.style.outlineOffset = '2px';
+  target.style.borderRadius = target.style.borderRadius || '9px';
+  target.scrollIntoView({behavior:'smooth', block:'center'});
+  setTimeout(()=>{ target.style.outline=''; }, 2500);
+}
+function previewSale(){
+  const f = collectSaleForm();
+  const err = validateSale(f);
+  if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  const pt = PAY_TYPES.find(p=>p.id===f.paymentType);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนบันทึก</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="preview-box">
+        <div class="preview-row"><span class="k">ลำดับที่</span><span class="v">${f.no}</span></div>
+        <div class="preview-row"><span class="k">วันที่</span><span class="v">${fmtDate(f.date)}</span></div>
+        <div class="preview-row"><span class="k">ชื่อลูกค้า</span><span class="v">${escapeHtml(f.customerName)}</span></div>
+        <div class="preview-row"><span class="k">เลขที่บิล</span><span class="v">${escapeHtml(f.billNo)}</span></div>
+        <div class="preview-row"><span class="k">ยอดเงิน</span><span class="v">฿ ${fmtMoney(f.amount)}</span></div>
+        <div class="preview-row"><span class="k">ประเภทชำระ</span><span class="v">${pt.icon} ${pt.label}</span></div>
+        ${f.bank?`<div class="preview-row"><span class="k">ธนาคาร</span><span class="v">${f.bank}</span></div>`:''}
+        ${f.creditDays?`<div class="preview-row"><span class="k">เครดิต</span><span class="v">${f.creditDays} วัน</span></div>`:''}
+        <div class="preview-row"><span class="k">หมายเหตุ</span><span class="v">${escapeHtml(f.note)||'-'}</span></div>
+        <div class="preview-row"><span class="k">สาขา</span><span class="v">${escapeHtml(f.branch)}</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="openSaleForm()">แก้ไข</button>
+      <button class="btn btn-primary" onclick="submitSale()">ยืนยันบันทึก</button>
+    </div>
+  `);
+}
+async function submitSale(){
+  const f = collectSaleForm();
+  const err = validateSale(f);
+  if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now(), billed: TAB1_CUSTVIEW==='credit' ? false : undefined}, f);
+  DB.sales.push(rec);
+  try{
+    await saveSales();
+  }catch(e){
+    DB.sales.pop();
+    console.error('submitSale failed', e);
+    toast('บันทึกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
+    return;
+  }
+  renderShell();
+  toast('บันทึกรายการเรียบร้อย');
+  pushSaleToSheet(rec);
+  askSplitPayment(rec);
+}
+function askSplitPayment(rec){
+  window.__lastSaleRec = rec;
+  const pt = PAY_TYPES.find(p=>p.id===rec.paymentType);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} บันทึกรายการเรียบร้อย</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="margin-top:0">บิลเลขที่ <b>${escapeHtml(rec.billNo)}</b> ของ <b>${escapeHtml(rec.customerName)}</b> — บันทึกยอด ฿${fmtMoney(rec.amount)} (${pt?pt.icon+' '+pt.label:''}) เรียบร้อยแล้ว</p>
+      <p class="helper-text">ถ้าลูกค้าชำระบิลนี้มากกว่า 1 ช่องทาง (เช่น จ่ายเงินสดบางส่วน + โอนบางส่วน) กด "เพิ่มการชำระอีกช่องทาง" เพื่อบันทึกยอดส่วนที่เหลือแยกไว้ในบิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติในทุกรายงาน</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">เสร็จสิ้น</button>
+      <button class="btn btn-primary" onclick="continueSplitPayment()">+ เพิ่มการชำระอีกช่องทาง</button>
+    </div>
+  `);
+}
+function continueSplitPayment(){
+  const rec = window.__lastSaleRec;
+  if(!rec) return;
+  openSaleForm({customerName: rec.customerName, billNo: rec.billNo});
+}
+
+/* =========================================================
+   TAB 2 — CASH SUMMARY (HS / RE)
+   ========================================================= */
+function renderTab2(){
+  const date = getTab1FilterDateForTab2();
+  const myAccess = CURRENT.role==='admin' ? {HS:true,IV:true} : (CURRENT.hsre||{});
+  const availableViews = ['HS','IV'].filter(k=>myAccess[k]);
+  if(!availableViews.length){
+    return `<div class="card"><div class="empty-state">${peakIcon(26)}<div>คุณไม่มีสิทธิ์เข้าถึงข้อมูล HS หรือ IV</div></div></div>`;
+  }
+  if(!availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0];
+  const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
+
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW));
+  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+
+  return `
+    <div class="filter-bar no-print">
+      <label>วันที่</label><input type="date" id="t2Date" value="${date}" onchange="renderShell()">
+    </div>
+    <div class="pill-tabs no-print" style="margin-bottom:16px">
+      ${availableViews.map(v=>`<button class="pill-tab ${v==='HS'?'type-hs':'type-iv'} ${TAB2_SUBVIEW===v?'active':''}" onclick="TAB2_SUBVIEW='${v}';renderShell()">เลขบิลขึ้นต้น ${v}</button>`).join('')}
+    </div>
+    <div class="card type-card ${typeClass}">
+      <div class="card-header">
+        <div class="card-title"><span class="type-chip ${typeClass}">${peakIcon(11)} ${TAB2_SUBVIEW}</span> สรุปเงินสด — ${fmtDate(date)}</div>
+        <button class="btn btn-outline btn-sm no-print" onclick="printTab2Preview()">ดูตัวอย่าง / พิมพ์</button>
+      </div>
+      <p class="helper-text" style="margin-top:0">แสดงเฉพาะรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ 1,000 บาท</p>
+      ${rows.length? `<div class="table-wrap"><table>
+        <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('')}</tbody>
+        <tfoot><tr style="font-weight:700"><td colspan="3">ยอดรวมทั้งหมด (${TAB2_SUBVIEW})</td><td style="text-align:right">${fmtMoney(total)}</td><td></td></tr></tfoot>
+      </table></div>` : `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการเงินสด ≥ 1,000 บาท ในวันที่เลือก</div></div>`}
+    </div>
+  `;
+}
+function getTab1FilterDateForTab2(){
+  const el = document.getElementById('t2Date');
+  return el ? el.value : todayStr();
+}
+function printTab2Preview(){
+  const date = getTab1FilterDateForTab2();
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW));
+  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนพิมพ์ — ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <h3 style="margin-top:0">SST Accounting — สรุปเงินสด ${TAB2_SUBVIEW}</h3>
+      <div class="helper-text">วันที่ ${fmtDate(date)}</div>
+      <div class="table-wrap" style="margin-top:12px"><table>
+        <thead><tr><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('')}</tbody>
+        <tfoot><tr style="font-weight:700"><td colspan="2">รวม</td><td style="text-align:right">${fmtMoney(total)}</td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="window.print()">พิมพ์เอกสาร</button>
+    </div>
+  `);
+}
+
+/* =========================================================
+   TAB 3 — CHECKS (เช็ครับลูกหนี้)
+   ========================================================= */
+let CHECK_VIEW = 'pending'; // pending | deposited | history
+window.__uploadedCheckImgFull = null;
+window.__uploadedCheckImgThumb = null;
+
+function renderTab3(){
+  const lists = getCheckLists();
+  let historyRows = lists.history;
+  let historyFilterBar = '';
+  if(CHECK_VIEW==='history'){
+    const dateEl = document.getElementById('t3HistDate');
+    const filterDate = dateEl ? dateEl.value : (window.__t3histdate||'');
+    window.__t3histdate = filterDate;
+    if(filterDate) historyRows = historyRows.filter(c=>c.clearedDate===filterDate);
+    historyFilterBar = `
+      <div class="filter-bar no-print">
+        <label>กรองตามวันที่ผ่านเช็ค</label>
+        <input type="date" id="t3HistDate" value="${filterDate}" onchange="renderShell()">
+        ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3histdate='';renderShell()">ล้างตัวกรอง (ดูทั้งหมด)</button>`:''}
+      </div>`;
+  }
+  return `
+    <div class="pill-tabs no-print" style="margin-bottom:16px">
+      <button class="pill-tab ${CHECK_VIEW==='pending'?'active':''}" onclick="CHECK_VIEW='pending';renderShell()">รอนำเข้าธนาคาร (${lists.pending.length})</button>
+      <button class="pill-tab ${CHECK_VIEW==='deposited'?'active':''}" onclick="CHECK_VIEW='deposited';renderShell()">ผ่านเช็ครับ (${lists.deposited.length})</button>
+      <button class="pill-tab ${CHECK_VIEW==='history'?'active':''}" onclick="CHECK_VIEW='history';renderShell()">ประวัติเช็ครับ (${lists.history.length})</button>
+    </div>
+    ${historyFilterBar}
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">${peakIcon()} ${CHECK_VIEW==='pending'?'รายการเช็ครอนำเข้าธนาคาร':CHECK_VIEW==='deposited'?'เช็คที่นำเข้าธนาคารแล้ว (รอผ่านเช็ค)':'ประวัติเช็ครับ'}</div>
+        ${CHECK_VIEW==='pending'?`<button class="btn btn-primary btn-sm no-print" onclick="openCheckForm()">+ บันทึกเช็คใหม่</button>`:''}
+      </div>
+      ${renderCheckTable(CHECK_VIEW==='history'?historyRows:lists[CHECK_VIEW], CHECK_VIEW==='history')}
+    </div>
+  `;
+}
+function getCheckLists(){
+  return {
+    pending: DB.checks.filter(c=>c.status==='pending_deposit'),
+    deposited: DB.checks.filter(c=>c.status==='deposited'),
+    history: DB.checks.filter(c=>c.status==='cleared'),
+  };
+}
+function renderCheckTable(list, isHistory){
+  if(!list.length) return `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการ</div></div>`;
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>เลขที่บิล</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th class="no-print">การจัดการ</th></tr></thead>
+    <tbody>${list.map(c=>`
+      <tr>
+        <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
+        <td>${fmtDate(c.dateReceived)}</td>
+        <td>${escapeHtml(c.billNo)}</td>
+        <td>${escapeHtml(c.company)}</td>
+        <td>${escapeHtml(c.bank)}</td>
+        <td style="text-align:right">${fmtMoney(c.amount)}</td>
+        <td>${escapeHtml(c.checkNo)}</td>
+        <td>${fmtDate(c.checkDate)}</td>
+        ${isHistory?`<td>${fmtDate(c.clearedDate)}</td>`:''}
+        <td>${escapeHtml(c.branch)}</td>
+        <td class="no-print check-list-actions">
+          ${c.status==='pending_deposit'?`<button class="btn btn-outline btn-sm" onclick="markDeposited('${c.id}')">✓ นำเข้าธนาคารแล้ว</button>`:''}
+          ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}')">✓ ผ่านเช็คแล้ว</button>`:''}
+          ${c.status==='cleared'?`<button class="btn btn-outline btn-sm" onclick="returnCheck('${c.id}')">↩ คืนเช็ค</button>`:''}
+          ${CURRENT.role==='admin'?`<button class="btn btn-ghost btn-sm" onclick="deleteCheck('${c.id}')">ลบ</button>`:''}
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+async function deleteCheck(id){
+  const c = DB.checks.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm(`ยืนยันลบรายการเช็ค "${c.checkNo||''}" — ${escapeHtml(c.company||'')}? การลบนี้ไม่สามารถย้อนกลับได้`)) return;
+  const idx = DB.checks.findIndex(x=>x.id===id);
+  const removed = DB.checks[idx];
+  DB.checks.splice(idx,1);
+  try{ await saveChecks(); }
+  catch(e){ DB.checks.splice(idx,0,removed); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  try{ localStorage.removeItem('sst_checkimg_'+id); }catch(e){}
+  if(window.storage){ try{ await window.storage.delete('sst_checkimg_'+id, true); }catch(e){} }
+  renderShell();
+  toast('ลบรายการเช็คแล้ว');
+}
+async function viewCheckImage(id){
+  const c = DB.checks.find(x=>x.id===id);
+  if(!c) return;
+  openModal(`
+    <div class="modal-header"><div class="modal-title">รูปเช็ค — ${escapeHtml(c.checkNo)}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="text-align:center" id="checkImgModalBody">
+      <img src="${c.thumb||''}" style="max-width:100%;border-radius:8px;opacity:0.6">
+      <div class="helper-text">กำลังโหลดรูปขนาดเต็ม...</div>
+    </div>
+  `);
+  let full = null;
+  if(window.storage){
+    try{
+      const r = await window.storage.get('sst_checkimg_'+id, true);
+      full = r ? JSON.parse(r.value) : null;
+    }catch(e){ full = null; }
+  }
+  if(!full) full = lsGet('sst_checkimg_'+id);
+  const body = document.getElementById('checkImgModalBody');
+  if(!body) return; // modal was closed already
+  if(full){
+    body.innerHTML = `<img src="${full}" style="max-width:100%;border-radius:8px">${c.driveUrl?`<div class="helper-text"><a href="${c.driveUrl}" target="_blank">เปิดใน Google Drive ↗</a></div>`:''}`;
+  } else if(c.thumb){
+    body.innerHTML = `<img src="${c.thumb}" style="max-width:100%;border-radius:8px"><div class="helper-text">แสดงเฉพาะรูปย่อ (ไม่พบรูปขนาดเต็มในระบบ)</div>`;
+  } else {
+    body.innerHTML = `<div class="helper-text">ไม่มีรูปภาพสำหรับเช็คนี้</div>`;
+  }
+}
+async function markDeposited(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  c.status='deposited'; c.depositedDate = todayStr();
+  await saveChecks(); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
+}
+async function markCleared(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  c.status='cleared'; c.clearedDate = todayStr();
+  await saveChecks(); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
+}
+function returnCheck(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} คืนเช็ค — ${escapeHtml(c.checkNo)}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p class="helper-text" style="margin-top:0">เช็คนี้จะถูกย้ายกลับไปที่ "รอนำเข้าธนาคาร" คุณสามารถเปลี่ยนวันที่ในเช็ค (วันครบกำหนด) ใหม่ได้ที่นี่ก่อนนำเข้าอีกครั้ง</p>
+      <div class="field"><label>วันที่ในเช็ค (วันครบกำหนดใหม่)</label><input type="date" id="rcNewDate" value="${c.checkDate||''}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="confirmReturnCheck('${id}')">ยืนยันคืนเช็ค</button>
+    </div>
+  `);
+}
+async function confirmReturnCheck(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  const newDate = document.getElementById('rcNewDate').value;
+  c.status='pending_deposit';
+  c.clearedDate=null;
+  c.depositedDate=null;
+  if(newDate) c.checkDate = newDate;
+  await saveChecks();
+  closeModal();
+  renderShell();
+  toast('คืนเช็คแล้ว — เช็คกลับไปอยู่ในรายการรอนำเข้าธนาคาร');
+}
+function openCheckForm(){
+  window.__uploadedCheckImgFull = null;
+  window.__uploadedCheckImgThumb = null;
+  let branches = getBranchList();
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} บันทึกเช็ครับใหม่</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field full">
+        <label>รูปภาพเช็ค</label>
+        <div class="upload-box" id="uploadBox" onclick="document.getElementById('checkFileInput').click()">
+          📎 คลิกเพื่ออัปโหลดรูปเช็ค
+        </div>
+        <input type="file" id="checkFileInput" accept="image/*" style="display:none" onchange="handleCheckImage(event)">
+      </div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="field"><label>วันที่รับเช็คมา</label><input type="date" id="cDateReceived" value="${todayStr()}"></div>
+        <div class="field"><label>เลขที่บิล</label><input type="text" id="cBillNo" placeholder="เลขที่บิล"></div>
+        <div class="field full"><label>บริษัท (ลูกค้า)</label><input type="text" id="cCompany" placeholder="ชื่อบริษัท / ลูกค้า"></div>
+        <div class="field"><label>ธนาคาร</label>
+          <input type="text" id="cBank" list="checkBankList" placeholder="เลือกหรือพิมพ์ชื่อธนาคาร">
+          <datalist id="checkBankList">${CHECK_BANKS.map(b=>`<option value="${b}">`).join('')}</datalist>
+        </div>
+        <div class="field"><label>จำนวนเงิน</label><input type="number" id="cAmount" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>เลขที่เช็ค</label><input type="text" id="cCheckNo" placeholder="เลขที่เช็ค"></div>
+        <div class="field"><label>วันที่ในเช็ค (วันครบกำหนด)</label><input type="date" id="cCheckDate"></div>
+        <div class="field full"><label>สาขา</label>
+          <input type="text" id="cBranch" list="branchList" value="${CURRENT.role!=='admin'?escapeHtml(CURRENT.branch):''}" placeholder="สาขา">
+          <datalist id="branchList">${branches.map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist>
+        </div>
+      </div>
+      <div class="helper-text">ระบบจะแจ้งเตือนล่วงหน้า 10 วันก่อนถึงวันที่ในเช็ค ให้นำเช็คไปเข้าธนาคาร</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitCheck()">บันทึกเช็ค</button>
+    </div>
+  `);
+}
+function handleCheckImage(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      // full-size version (stored in its own key, or sent to Drive)
+      const fullCanvas = document.createElement('canvas');
+      const fullMaxW = 900;
+      const fullScale = Math.min(1, fullMaxW/img.width);
+      fullCanvas.width = img.width*fullScale; fullCanvas.height = img.height*fullScale;
+      fullCanvas.getContext('2d').drawImage(img,0,0,fullCanvas.width,fullCanvas.height);
+      window.__uploadedCheckImgFull = fullCanvas.toDataURL('image/jpeg', 0.75);
+
+      // small thumbnail kept inline with the check record for fast table display
+      const thumbCanvas = document.createElement('canvas');
+      const thumbMaxW = 140;
+      const thumbScale = Math.min(1, thumbMaxW/img.width);
+      thumbCanvas.width = img.width*thumbScale; thumbCanvas.height = img.height*thumbScale;
+      thumbCanvas.getContext('2d').drawImage(img,0,0,thumbCanvas.width,thumbCanvas.height);
+      window.__uploadedCheckImgThumb = thumbCanvas.toDataURL('image/jpeg', 0.55);
+
+      const box = document.getElementById('uploadBox');
+      box.classList.add('has-image');
+      box.innerHTML = `<img src="${window.__uploadedCheckImgFull}">`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function collectCheckForm(){
+  return {
+    dateReceived: document.getElementById('cDateReceived').value,
+    billNo: document.getElementById('cBillNo').value.trim(),
+    company: document.getElementById('cCompany').value.trim(),
+    bank: document.getElementById('cBank').value,
+    amount: Number(document.getElementById('cAmount').value)||0,
+    checkNo: document.getElementById('cCheckNo').value.trim(),
+    checkDate: document.getElementById('cCheckDate').value,
+    branch: document.getElementById('cBranch').value.trim(),
+    thumb: window.__uploadedCheckImgThumb || null,
+  };
+}
+function validateCheck(f){
+  if(!f.company) return {msg:'กรุณากรอกชื่อบริษัท/ลูกค้า', field:'cCompany'};
+  if(!f.bank) return {msg:'กรุณากรอกธนาคาร', field:'cBank'};
+  if(!f.amount || f.amount<=0) return {msg:'กรุณากรอกจำนวนเงินให้ถูกต้อง', field:'cAmount'};
+  if(!f.checkNo) return {msg:'กรุณากรอกเลขที่เช็ค', field:'cCheckNo'};
+  if(!f.checkDate) return {msg:'กรุณาเลือกวันที่ในเช็ค', field:'cCheckDate'};
+  if(!f.dateReceived) return {msg:'กรุณาเลือกวันที่รับเช็ค', field:'cDateReceived'};
+  if(!f.branch) return {msg:'กรุณากรอกสาขา', field:'cBranch'};
+  return null;
+}
+async function submitCheck(){
+  const f = collectCheckForm();
+  const err = validateCheck(f);
+  if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  const rec = Object.assign({id:uid(), status:'pending_deposit', createdAt:Date.now(), enteredBy:CURRENT.id}, f);
+  DB.checks.push(rec);
+  try{
+    await saveChecks();
+  }catch(e){
+    DB.checks.pop();
+    console.error('submitCheck failed', e);
+    toast('บันทึกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
+    return;
+  }
+  const fullImg = window.__uploadedCheckImgFull;
+  if(fullImg){
+    lsSet('sst_checkimg_'+rec.id, fullImg);
+    if(window.storage){
+      try{ await window.storage.set('sst_checkimg_'+rec.id, JSON.stringify(fullImg), true); }
+      catch(e){ console.warn('cloud sync of check image failed (saved on this device)', e); }
+    }
+  }
+  closeModal();
+  renderShell();
+  toast('บันทึกเช็คเรียบร้อย — ระบบจะแจ้งเตือนในปฏิทินเช็ครับ');
+  if(fullImg) pushCheckImageToDrive(rec, fullImg);
+}
+
+/* ---- calendar view ---- */
+function renderTab3Cal(){
+  const today = todayStr();
+  const active = DB.checks.filter(c=>c.status!=='cleared');
+  active.sort((a,b)=>new Date(a.checkDate)-new Date(b.checkDate));
+  const overdue = active.filter(c=>daysBetween(today,c.checkDate)<0);
+  const dueSoon = active.filter(c=>{const d=daysBetween(today,c.checkDate); return d>=0 && d<=10;});
+  const upcoming = active.filter(c=>daysBetween(today,c.checkDate)>10);
+
+  function checkRow(c){
+    const d = daysBetween(today,c.checkDate);
+    let badge = d<0 ? `<span class="badge badge-check">เลยกำหนด ${Math.abs(d)} วัน</span>`
+      : d<=10 ? `<span class="badge badge-status-pending">เหลือ ${d} วัน</span>`
+      : `<span class="badge badge-status-deposited">อีก ${d} วัน</span>`;
+    return `<tr>
+      <td>${fmtDate(c.checkDate)}</td><td>${escapeHtml(c.company)}</td><td>${escapeHtml(c.checkNo)}</td>
+      <td style="text-align:right">${fmtMoney(c.amount)}</td>
+      <td><span class="badge badge-status-${c.status==='deposited'?'deposited':'pending'}">${c.status==='deposited'?'นำเข้าธนาคารแล้ว':'รอนำเข้า'}</span></td>
+      <td>${badge}</td>
+    </tr>`;
+  }
+  function block(title, rows, emptyMsg){
+    return `<div class="card"><div class="card-header"><div class="card-title">${peakIcon()} ${title} (${rows.length})</div></div>
+      ${rows.length?`<div class="table-wrap"><table><thead><tr><th>วันที่ในเช็ค</th><th>บริษัท</th><th>เลขที่เช็ค</th><th style="text-align:right">จำนวนเงิน</th><th>สถานะ</th><th>กำหนดการ</th></tr></thead><tbody>${rows.map(checkRow).join('')}</tbody></table></div>`
+      :`<div class="empty-state">${peakIcon(22)}<div>${emptyMsg}</div></div>`}
+    </div>`;
+  }
+  return block('เลยกำหนดนำเข้าธนาคารแล้ว', overdue, 'ไม่มีเช็คที่เลยกำหนด')
+    + block('ใกล้ถึงกำหนด (ภายใน 10 วัน)', dueSoon, 'ไม่มีเช็คที่ใกล้ถึงกำหนด')
+    + block('เช็คที่ยังไม่ถึงกำหนด', upcoming, 'ไม่มีรายการ');
+}
+
+/* =========================================================
+   SETTINGS — permissions & staff
+   ========================================================= */
+function renderSettings(){
+  if(CURRENT.role!=='admin') return renderNoAccess();
+  return `
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} จัดการสาขา</div>
+        <button class="btn btn-primary btn-sm" onclick="openAddBranchForm()">+ เพิ่มสาขา</button>
+      </div>
+      <p class="helper-text" style="margin-top:0">สาขาที่เพิ่มไว้นี้จะขึ้นเป็นตัวเลือกในตัวกรองและฟอร์มต่างๆ ทั่วทั้งแอป (รายงานการขาย, เช็ครับ, รายชื่อพนักงาน)</p>
+      ${getBranchList().length ? getBranchList().map(b=>{
+        const inUse = DB.users.some(u=>u.branch===b);
+        return `<div class="emp-row">
+          <div class="emp-avatar">${peakIcon(14)}</div>
+          <div class="emp-meta"><div class="emp-name">${escapeHtml(b)}</div>${inUse?'<div class="emp-sub">มีพนักงานสังกัดสาขานี้อยู่</div>':''}</div>
+          <button class="btn btn-ghost btn-sm" onclick="deleteBranch('${escapeHtml(b).replace(/'/g,"\\'")}')" ${inUse?'disabled title="ย้ายพนักงานออกจากสาขานี้ก่อนถึงจะลบได้"':''}>ลบ</button>
+        </div>`;
+      }).join('') : `<div class="empty-state">${peakIcon(22)}<div>ยังไม่มีสาขา</div></div>`}
+    </div>
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} รายชื่อผู้ใช้งาน</div>
+        <button class="btn btn-primary btn-sm" onclick="openUserForm()">+ เพิ่มพนักงาน</button>
+      </div>
+      ${DB.users.map(u=>`
+        <div class="emp-row">
+          <div class="emp-avatar">${u.name.slice(0,1).toUpperCase()}</div>
+          <div class="emp-meta">
+            <div class="emp-name">${escapeHtml(u.name)} ${u.role==='admin'?'<span class="badge badge-hs">Admin</span>':''}</div>
+            <div class="emp-sub">User ID: ${escapeHtml(u.id)} ${u.role==='staff'?'· '+escapeHtml(u.branch||'-'):''}</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="openUserForm('${u.id}')">แก้ไข</button>
+          ${u.id!=='admin'&&u.id!==CURRENT.id?`<button class="btn btn-ghost btn-sm" onclick="deleteUser('${u.id}')">ลบ</button>`:''}
+        </div>`).join('')}
+    </div>
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} เชื่อมต่อ Google Sheets / Drive</div></div>
+      <p class="helper-text" style="margin-top:0">
+        Sheet: docs.google.com/spreadsheets/d/11tyyirqrzBd1pWAz6NcsKg2XKc-Wl0PRJZ4wmiK59y0<br>
+        Drive Folder: drive.google.com/drive/folders/123WwCIWpYx8xkbP3ba0kx_4tIJ_eZWaV<br>
+        หลังจาก Deploy Apps Script แล้ว (ดูขั้นตอนในไฟล์ Google-Sheets-Drive-Integration.md) ให้วาง Web App URL ที่ได้ไว้ที่นี่ — ทุกรายการขายและรูปเช็คใหม่จะถูกส่งเข้า Sheet/Drive จริงโดยอัตโนมัติ
+      </p>
+      <div class="form-grid">
+        <div class="field full"><label>Apps Script Web App URL</label><input type="text" id="gsUrl" value="${escapeHtml(APPS_SCRIPT_URL||'')}" placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
+        <div class="field" style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%" onclick="saveGsUrlFromForm()">บันทึกการเชื่อมต่อ</button></div>
+      </div>
+      <div class="helper-text">${APPS_SCRIPT_URL ? '🟢 เชื่อมต่อแล้ว' : '⚪ ยังไม่ได้เชื่อมต่อ — ข้อมูลจะบันทึกในแอปเท่านั้น (ยังใช้งานได้ปกติ)'}</div>
+      ${APPS_SCRIPT_URL ? `
+      <div class="section-divider"></div>
+      <div class="locked-notice" style="background:var(--green-soft);color:var(--green-dark)">${peakIcon(13)} การเชื่อมต่อจะดึงรายชื่อจาก Sheets เข้ามาอัตโนมัติ แต่ <b>จะไม่ส่งรายชื่อที่มีอยู่ในเครื่องนี้ขึ้นไปเองจนกว่าจะมีการแก้ไข</b> — ถ้าเครื่องนี้มีรายชื่อพนักงานที่ถูกต้อง/ล่าสุดอยู่แล้ว (เช่น เครื่องที่ใช้เพิ่มพนักงานเป็นประจำ) กดปุ่มด้านล่างเพื่อส่งขึ้นไปเป็นข้อมูลกลางทันที</div>
+      <button class="btn btn-outline btn-sm" onclick="pushLocalUsersAndBranchesToSheets()">🔼 ส่งรายชื่อพนักงาน/สาขาของเครื่องนี้ขึ้น Google Sheets ตอนนี้</button>
+      <p class="helper-text">คำเตือน: การกดปุ่มนี้จะ<b>เขียนทับ</b>รายชื่อกลางใน Google Sheets ด้วยรายชื่อของเครื่องนี้ — ใช้เฉพาะเมื่อมั่นใจว่าเครื่องนี้มีรายชื่อล่าสุด/ถูกต้องที่สุด</p>
+      ` : ''}
+    </div>
+    ${APPS_SCRIPT_URL ? renderDriveUploadBlock() : ''}
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} เปลี่ยนรหัสผ่านของฉัน</div></div>
+      <div class="form-grid">
+        <div class="field"><label>รหัสผ่านใหม่</label><input type="password" id="newSelfPass" placeholder="รหัสผ่านใหม่"></div>
+        <div class="field" style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%" onclick="changeSelfPass()">บันทึกรหัสผ่าน</button></div>
+      </div>
+    </div>
+  `;
+}
+function renderDriveUploadBlock(){
+  const monthEl = document.getElementById('driveUploadMonth');
+  const month = monthEl ? monthEl.value : (window.__driveUploadMonth || todayStr().slice(0,7));
+  window.__driveUploadMonth = month;
+  const monthChecks = DB.checks.filter(c=>(c.checkDate||'').startsWith(month));
+  const uploaded = monthChecks.filter(c=>c.driveUrl).length;
+  const pending = monthChecks.filter(c=>!c.driveUrl && (c.thumb||c.imageData)).length;
+  const noImage = monthChecks.filter(c=>!c.thumb && !c.imageData).length;
+  return `
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} อัปโหลดรูปเช็คขึ้น Google Drive รายเดือน</div></div>
+      <p class="helper-text" style="margin-top:0">เลือกเดือน (อ้างอิงจากวันที่ในเช็ค) แล้วกดอัปโหลด — ระบบจะส่งเฉพาะรูปเช็คที่ยังไม่เคยอัปโหลดในเดือนนั้นขึ้น Google Drive ให้อัตโนมัติ แยกโฟลเดอร์ตามเดือน_ปีพ.ศ. ให้เอง</p>
+      <div class="filter-bar" style="margin-bottom:12px">
+        <label>เดือน</label>
+        <input type="month" id="driveUploadMonth" value="${month}" onchange="renderShell()">
+      </div>
+      <div class="grid grid-3" style="margin-bottom:16px">
+        <div class="stat-card"><div class="label">เช็คทั้งหมดในเดือนนี้</div><div class="value">${monthChecks.length}</div></div>
+        <div class="stat-card accent-green"><div class="label">อัปโหลดแล้ว</div><div class="value">${uploaded}</div></div>
+        <div class="stat-card accent-red"><div class="label">รออัปโหลด</div><div class="value">${pending}</div></div>
+      </div>
+      ${noImage?`<div class="helper-text">หมายเหตุ: มี ${noImage} รายการที่ไม่มีรูปแนบไว้ตั้งแต่ตอนบันทึก จะไม่ถูกนับรวม</div>`:''}
+      <button class="btn btn-primary" id="driveUploadBtn" onclick="bulkUploadChecksToDrive()" ${pending===0?'disabled':''}>
+        ⬆ อัปโหลดรูปเช็ค ${pending} ใบขึ้น Google Drive
+      </button>
+    </div>`;
+}
+async function bulkUploadChecksToDrive(){
+  if(!APPS_SCRIPT_URL){ toast('กรุณาตั้งค่า Google Drive ก่อน', true); return; }
+  const month = window.__driveUploadMonth || todayStr().slice(0,7);
+  const targets = DB.checks.filter(c=>(c.checkDate||'').startsWith(month) && !c.driveUrl && (c.thumb||c.imageData));
+  if(!targets.length){ toast('ไม่มีรูปเช็คที่ต้องอัปโหลดในเดือนนี้'); return; }
+  const btn = document.getElementById('driveUploadBtn');
+  if(btn){ btn.disabled = true; btn.textContent = `กำลังอัปโหลด 0/${targets.length}...`; }
+  let success = 0, fail = 0;
+  for(let i=0;i<targets.length;i++){
+    const c = targets[i];
+    try{
+      let full = null;
+      if(window.storage){
+        try{
+          const r = await window.storage.get('sst_checkimg_'+c.id, true);
+          full = r ? JSON.parse(r.value) : null;
+        }catch(e){ full = null; }
+      }
+      if(!full) full = lsGet('sst_checkimg_'+c.id);
+      if(!full) full = c.thumb;
+      if(!full){ fail++; continue; }
+      await pushCheckImageToDrive(c, full, true);
+      if(c.driveUrl) success++; else fail++;
+    }catch(e){ fail++; }
+    if(btn) btn.textContent = `กำลังอัปโหลด ${i+1}/${targets.length}...`;
+  }
+  await saveChecks();
+  renderShell();
+  toast(`อัปโหลดขึ้น Google Drive สำเร็จ ${success} ใบ${fail?` · ล้มเหลว ${fail} ใบ (ลองใหม่ได้)`:''}`, fail>0 && success===0);
+}
+async function pushLocalUsersAndBranchesToSheets(){
+  if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
+  if(!confirm('ยืนยันส่งรายชื่อพนักงาน/สาขาของเครื่องนี้ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
+  try{
+    await pushConfigToSheets('users', DB.users);
+    await pushConfigToSheets('branches', DB.branches);
+    toast('ส่งรายชื่อพนักงาน/สาขาขึ้น Google Sheets เรียบร้อย');
+  }catch(e){
+    console.error('pushLocalUsersAndBranchesToSheets failed', e);
+    toast('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่', true);
+  }
+}
+async function saveGsUrlFromForm(){
+  const url = document.getElementById('gsUrl').value.trim();
+  await saveAppsScriptUrl(url);
+  toast(url ? 'บันทึกการเชื่อมต่อ Google Sheets/Drive แล้ว' : 'ยกเลิกการเชื่อมต่อแล้ว');
+  renderShell();
+}
+function openAddBranchForm(){
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} เพิ่มสาขาใหม่</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>ชื่อสาขา</label><input type="text" id="newBranchName" placeholder="เช่น สาขา 2"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitAddBranch()">บันทึก</button>
+    </div>
+  `);
+}
+async function submitAddBranch(){
+  const nameEl = document.getElementById('newBranchName');
+  const name = nameEl.value.trim();
+  if(!name){ toast('กรุณากรอกชื่อสาขา', true); flagInvalidField('newBranchName'); return; }
+  if(getBranchList().some(b=>b.toLowerCase()===name.toLowerCase())){ toast('มีสาขานี้อยู่แล้ว', true); return; }
+  DB.branches = [...(DB.branches||[]), name];
+  try{ await saveBranches(); }
+  catch(e){ DB.branches = DB.branches.filter(b=>b!==name); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  closeModal();
+  renderShell();
+  toast('เพิ่มสาขาเรียบร้อย');
+}
+async function deleteBranch(name){
+  if(DB.users.some(u=>u.branch===name)){ toast('มีพนักงานสังกัดสาขานี้อยู่ ย้ายพนักงานออกก่อน', true); return; }
+  if(!confirm(`ยืนยันลบสาขา "${name}"?`)) return;
+  const prev = DB.branches;
+  DB.branches = (DB.branches||[]).filter(b=>b!==name);
+  try{ await saveBranches(); }
+  catch(e){ DB.branches = prev; toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  renderShell();
+  toast('ลบสาขาแล้ว');
+}
+function openUserForm(id){
+  const u = id ? DB.users.find(x=>x.id===id) : null;
+  const isEdit = !!u;
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${isEdit?'แก้ไขพนักงาน':'เพิ่มพนักงานใหม่'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>User ID</label><input type="text" id="uId" value="${u?u.id:''}" ${isEdit?'disabled':''}></div>
+        <div class="field"><label>ชื่อ-นามสกุล</label><input type="text" id="uName" value="${u?escapeHtml(u.name):''}"></div>
+        <div class="field"><label>รหัสผ่าน</label><input type="text" id="uPass" value="${u?escapeHtml(u.pass):''}" placeholder="ตั้ง / รีเซ็ตรหัสผ่าน"></div>
+        <div class="field"><label>บทบาท</label>
+          <select id="uRole" onchange="toggleStaffFields()">
+            <option value="staff" ${u&&u.role==='staff'?'selected':''}>พนักงาน</option>
+            <option value="admin" ${u&&u.role==='admin'?'selected':''}>ผู้ดูแลระบบ (Admin)</option>
+          </select>
+        </div>
+        <div class="field full" id="branchFieldWrap"><label>สาขา</label><input type="text" id="uBranch" list="empBranchList" value="${u?escapeHtml(u.branch||''):''}"><datalist id="empBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>
+      </div>
+      <div class="section-divider"></div>
+      <div id="permBlockWrap">
+        <label style="font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:10px">สิทธิ์การเข้าถึง Tab</label>
+        <table class="perm-table">
+          <tr><td>รายงานการขาย (Tab 1)</td><td><label class="toggle"><input type="checkbox" id="pTab1" ${u&&u.tabs.tab1?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+          <tr><td>ยอดรวมเงินสด (Tab 2)</td><td><label class="toggle"><input type="checkbox" id="pTab2" ${u&&u.tabs.tab2?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+          <tr><td>&nbsp;&nbsp;↳ เข้าถึง HS</td><td><label class="toggle"><input type="checkbox" id="pHS" ${u&&u.hsre&&u.hsre.HS?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+          <tr><td>&nbsp;&nbsp;↳ เข้าถึง IV</td><td><label class="toggle"><input type="checkbox" id="pIV" ${u&&u.hsre&&u.hsre.IV?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+          <tr><td>เช็ครับลูกหนี้ (Tab 3)</td><td><label class="toggle"><input type="checkbox" id="pTab3" ${u&&u.tabs.tab3?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveUserForm(${isEdit?`'${u.id}'`:'null'})">บันทึก</button>
+    </div>
+  `);
+  setTimeout(toggleStaffFields, 0);
+}
+function toggleStaffFields(){
+  const role = document.getElementById('uRole').value;
+  document.getElementById('permBlockWrap').style.display = role==='admin' ? 'none' : 'block';
+  document.getElementById('branchFieldWrap').style.display = role==='admin' ? 'none' : 'block';
+}
+async function saveUserForm(existingId){
+  const id = document.getElementById('uId').value.trim();
+  const name = document.getElementById('uName').value.trim();
+  const pass = document.getElementById('uPass').value;
+  const role = document.getElementById('uRole').value;
+  if(!id || !name || !pass){ toast('กรุณากรอกข้อมูลให้ครบถ้วน', true); return; }
+  if(!existingId && DB.users.some(u=>u.id.toLowerCase()===id.toLowerCase())){ toast('User ID นี้มีอยู่แล้ว', true); return; }
+  const rec = {
+    id, name, pass, role,
+    branch: role==='staff' ? document.getElementById('uBranch').value.trim() : '',
+    tabs: role==='staff' ? {
+      tab1: document.getElementById('pTab1').checked,
+      tab2: document.getElementById('pTab2').checked,
+      tab3: document.getElementById('pTab3').checked,
+    } : {tab1:true,tab2:true,tab3:true},
+    hsre: role==='staff' ? {
+      HS: document.getElementById('pHS').checked,
+      IV: document.getElementById('pIV').checked,
+    } : {HS:true,IV:true},
+  };
+  if(existingId){
+    const idx = DB.users.findIndex(u=>u.id===existingId);
+    DB.users[idx] = rec;
+    if(CURRENT.id===existingId) CURRENT = rec;
+  } else {
+    DB.users.push(rec);
+  }
+  await saveUsers();
+  closeModal();
+  renderShell();
+  toast('บันทึกข้อมูลพนักงานแล้ว');
+}
+async function deleteUser(id){
+  if(!confirm('ยืนยันลบผู้ใช้งานนี้?')) return;
+  DB.users = DB.users.filter(u=>u.id!==id);
+  await saveUsers();
+  renderShell();
+  toast('ลบผู้ใช้งานแล้ว');
+}
+async function changeSelfPass(){
+  const p = document.getElementById('newSelfPass').value;
+  if(!p){ toast('กรุณากรอกรหัสผ่านใหม่', true); return; }
+  const idx = DB.users.findIndex(u=>u.id===CURRENT.id);
+  DB.users[idx].pass = p;
+  CURRENT.pass = p;
+  await saveUsers();
+  toast('เปลี่ยนรหัสผ่านเรียบร้อย');
+  renderShell();
+}
+
+/* ---------- global safety net: never fail silently ---------- */
+window.addEventListener('error', function(e){
+  console.error('Uncaught error:', e.error || e.message);
+  toast('เกิดข้อผิดพลาดในระบบ: '+(e.message||'ไม่ทราบสาเหตุ')+' — ลองรีเฟรชหน้าใหม่หากยังพบปัญหาซ้ำ', true);
+});
+window.addEventListener('unhandledrejection', function(e){
+  console.error('Unhandled promise rejection:', e.reason);
+  toast('เกิดข้อผิดพลาดขณะบันทึก/โหลดข้อมูล กรุณาลองใหม่อีกครั้ง', true);
+});
+
+/* ---------- boot ---------- */
+(async function boot(){
+  HAS_CLOUD_SYNC = typeof window.storage !== 'undefined' && window.storage !== null;
+  await loadAppsScriptUrl();
+  await loadDB();
+  if(!HAS_CLOUD_SYNC){
+    const hint = document.createElement('div');
+    hint.className = 'login-error';
+    hint.style.display = 'block';
+    hint.style.background = '#FBF1E2';
+    hint.style.color = '#95611A';
+    hint.textContent = 'กำลังทำงานแบบบันทึกในเครื่องนี้เท่านั้น (ยังไม่ซิงค์ข้ามอุปกรณ์อัตโนมัติ) — ข้อมูลปลอดภัยและใช้งานได้ปกติ แนะนำให้เชื่อมต่อ Google Sheets ในหน้าตั้งค่าเพื่อเก็บข้อมูลกลางที่ทุกเครื่องเห็นตรงกัน';
+    const card = document.querySelector('.login-card');
+    if(card) card.insertBefore(hint, card.querySelector('.field'));
+  }
+  document.getElementById('loginId').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('loginPass').focus(); });
+  document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') handleLogin(); });
+})();
+</script>
+</body>
+</html>
