@@ -756,14 +756,15 @@ function closeModal(){ document.getElementById('modalBackdrop').style.display='n
    ========================================================= */
 function renderDashboard(){
   const today = todayStr();
-  const mySales = CURRENT.role==='admin' ? DB.sales : DB.sales.filter(s=>s.employeeId===CURRENT.id);
-  const todaySales = mySales.filter(s=>s.date===today);
+  const isAdmin = CURRENT.role==='admin';
+  const scopedSales = isAdmin ? DB.sales : DB.sales.filter(s=>s.branch===CURRENT.branch);
+  const todaySales = scopedSales.filter(s=>s.date===today);
   const totalToday = todaySales.reduce((a,b)=>a+Number(b.amount||0),0);
   const cashToday = todaySales.filter(s=>s.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
   const checksDue = DB.checks.filter(c=>c.status!=='cleared' && daysBetween(today,c.checkDate)<=10 && daysBetween(today,c.checkDate)>=0);
 
   let branchBreak = '';
-  if(CURRENT.role==='admin'){
+  if(isAdmin){
     const byBranch = {};
     todaySales.forEach(s=>{ byBranch[s.branch]=(byBranch[s.branch]||0)+Number(s.amount||0); });
     branchBreak = Object.keys(byBranch).length ? `
@@ -773,11 +774,13 @@ function renderDashboard(){
         ${Object.entries(byBranch).map(([b,v])=>`<tr><td>${escapeHtml(b)}</td><td style="text-align:right;font-weight:600">${fmtMoney(v)}</td></tr>`).join('')}
         </tbody></table></div>
       </div>` : `<div class="card"><div class="empty-state">${peakIcon(26)}<div>ยังไม่มีข้อมูลการขายวันนี้</div></div></div>`;
+  } else if(!todaySales.length){
+    branchBreak = `<div class="card"><div class="empty-state">${peakIcon(26)}<div>ยังไม่มีข้อมูลการขายวันนี้ในสาขาของคุณ</div></div></div>`;
   }
 
   return `
     <div class="grid grid-3" style="margin-bottom:20px">
-      <div class="stat-card accent-green"><div class="label">ยอดขายวันนี้${CURRENT.role==='admin'?' (ทั้งบริษัท)':''}</div><div class="value">฿ ${fmtMoney(totalToday)}</div></div>
+      <div class="stat-card accent-green"><div class="label">ยอดขายวันนี้${isAdmin?' (ทั้งบริษัท)':' ('+escapeHtml(CURRENT.branch||'สาขาของคุณ')+')'}</div><div class="value">฿ ${fmtMoney(totalToday)}</div></div>
       <div class="stat-card accent-red"><div class="label">เงินสดวันนี้</div><div class="value">฿ ${fmtMoney(cashToday)}</div></div>
       <div class="stat-card"><div class="label">เช็คใกล้ครบกำหนด (≤10 วัน)</div><div class="value">${checksDue.length} ใบ</div></div>
     </div>
@@ -801,9 +804,9 @@ function renderTab1(){
   let branches = getBranchList();
 
   const payFilterOptions = `<option value="">ทุกประเภทชำระ</option>${PAY_TYPES.map(p=>`<option value="${p.id}" ${window.__t1pay===p.id?'selected':''}>${p.icon} ${p.label}</option>`).join('')}`;
-  const filterBar = isAdmin ? `
+  const filterBar = `
     <div class="filter-bar no-print">
-      <label>วันที่</label><input type="date" id="t1Date" value="${today}" onchange="renderShell()">
+      <label>วันที่</label><input type="date" id="t1Date" value="${today}" ${!isAdmin?'max="'+maxAllowedDate()+'"':''} onchange="renderShell()">
       <label>สาขา</label>
       <select id="t1Branch" onchange="renderShell()">
         <option value="">ทุกสาขา (รวมยอด)</option>
@@ -811,13 +814,8 @@ function renderTab1(){
       </select>
       <label>ประเภทชำระ</label>
       <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
-    </div>` : `
-    <div class="filter-bar no-print">
-      <label>วันที่</label><input type="date" id="t1Date" value="${today}" max="${maxAllowedDate()}" onchange="renderShell()">
-      <label>ประเภทชำระ</label>
-      <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
     </div>
-    <div class="helper-text" style="margin:-8px 0 12px">คุณสามารถบันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้</div>`;
+    ${!isAdmin?`<div class="helper-text" style="margin:-8px 0 12px">คุณสามารถบันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้ — ลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้</div>`:''}`;
 
   return `
     ${filterBar}
@@ -826,7 +824,7 @@ function renderTab1(){
         <button class="pill-tab ${TAB1_CUSTVIEW==='general'?'active':''}" onclick="TAB1_CUSTVIEW='general';renderShell()">ลูกค้าทั่วไป</button>
         <button class="pill-tab ${TAB1_CUSTVIEW==='credit'?'active':''}" onclick="TAB1_CUSTVIEW='credit';renderShell()">ลูกค้าเครดิต</button>
       </div>
-      ${isAdmin?`<button class="btn btn-outline btn-sm" onclick="openCombinedReport()">🖨 พิมพ์รายงานรวมทุกสาขา</button>`:''}
+      <button class="btn btn-outline btn-sm" onclick="openCombinedReport()">🖨 ${isAdmin?'พิมพ์รายงานรวมทุกสาขา':'พิมพ์รายงานสาขาของฉัน'}</button>
     </div>
     <div class="card">
       <div class="card-header">
@@ -850,14 +848,10 @@ function renderTab1Table(){
   const date = getTab1FilterDate();
   const isAdmin = CURRENT.role==='admin';
   let rows = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW);
-  if(isAdmin){
-    const branchEl = document.getElementById('t1Branch');
-    const branch = branchEl ? branchEl.value : '';
-    window.__t1branch = branch;
-    if(branch) rows = rows.filter(s=>s.branch===branch);
-  } else {
-    rows = rows.filter(s=>s.employeeId===CURRENT.id);
-  }
+  const branchEl = document.getElementById('t1Branch');
+  const branch = branchEl ? branchEl.value : '';
+  window.__t1branch = branch;
+  if(branch) rows = rows.filter(s=>s.branch===branch);
   const billCounts = {};
   rows.forEach(r=>{ billCounts[r.billNo] = (billCounts[r.billNo]||0)+1; });
   const payEl = document.getElementById('t1Pay');
@@ -873,7 +867,7 @@ function renderTab1Table(){
   return `<div class="table-wrap"><table>
     <thead><tr>
       <th>ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th>
-      <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th><th>สถานะวางบิล</th>':''}<th>หมายเหตุ</th>${isAdmin?'<th>สาขา / ผู้บันทึก</th>':''}<th class="no-print"></th>
+      <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th><th>สถานะวางบิล</th>':''}<th>หมายเหตุ</th><th>สาขา / ผู้บันทึก</th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${rows.map(r=>{
@@ -887,7 +881,7 @@ function renderTab1Table(){
           <td>${r.bank?escapeHtml(r.bank):'-'}</td>
           ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td><td><span class="badge ${r.billed?'badge-billed':'badge-notbilled'}">${r.billed?'✓ วางบิลแล้ว':'ยังไม่วางบิล'}</span></td>`:''}
           <td>${r.note?escapeHtml(r.note):'-'}</td>
-          ${isAdmin?`<td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>`:''}
+          <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
           <td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
             ${isCredit?`<button class="btn btn-outline btn-sm" onclick="toggleBilled('${r.id}')">${r.billed?'ยกเลิกวางบิล':'✓ วางบิลแล้ว'}</button>`:''}
             ${(r.employeeId===CURRENT.id && r.date===todayStr())?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
@@ -895,7 +889,7 @@ function renderTab1Table(){
         </tr>`;
       }).join('')}
     </tbody>
-    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isAdmin?(isCredit?7:5):(isCredit?6:4)}"></td></tr></tfoot>
+    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?7:5}"></td></tr></tfoot>
   </table></div>`;
 }
 async function toggleBilled(id){
@@ -909,17 +903,19 @@ async function toggleBilled(id){
 }
 function openCombinedReport(){
   const date = getTab1FilterDate() || todayStr();
-  const initialBranch = window.__t1branch || '';
+  const isAdmin = CURRENT.role==='admin';
+  const initialBranch = isAdmin ? (window.__t1branch || '') : (CURRENT.branch || '');
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} รายงานรวม (ทั่วไป + เครดิต)</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} รายงาน${isAdmin?'รวม':''} (ทั่วไป + เครดิต)</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body" id="combinedReportBody">
       <div class="filter-bar no-print" id="crFilterRow" style="margin-bottom:14px">
         <label>วันที่</label><input type="date" id="crDate" value="${date}" onchange="refreshCombinedReport()">
+        ${isAdmin ? `
         <label>สาขา</label>
         <select id="crBranch" onchange="refreshCombinedReport()">
           <option value="">ทุกสาขา (แยกให้ในรายงาน)</option>
           ${getBranchList().map(b=>`<option value="${escapeHtml(b)}" ${initialBranch===b?'selected':''}>${escapeHtml(b)} เท่านั้น</option>`).join('')}
-        </select>
+        </select>` : `<span class="badge badge-hs">สาขา: ${escapeHtml(CURRENT.branch||'-')}</span>`}
       </div>
       <div id="crContent">${buildCombinedReportHtml(date, initialBranch)}</div>
     </div>
@@ -933,7 +929,7 @@ function refreshCombinedReport(){
   const dateEl = document.getElementById('crDate');
   const branchEl = document.getElementById('crBranch');
   const date = dateEl ? dateEl.value : todayStr();
-  const branch = branchEl ? branchEl.value : '';
+  const branch = branchEl ? branchEl.value : (CURRENT.role!=='admin' ? (CURRENT.branch||'') : '');
   const content = document.getElementById('crContent');
   if(content) content.innerHTML = buildCombinedReportHtml(date, branch);
 }
@@ -998,7 +994,7 @@ function openSaleForm(prefill){
     toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
   }
   const myBranch = CURRENT.role==='admin' ? '' : CURRENT.branch;
-  const existingCount = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW && (CURRENT.role==='admin'||s.employeeId===CURRENT.id)).length;
+  const existingCount = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW).length;
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ${prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย'} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
