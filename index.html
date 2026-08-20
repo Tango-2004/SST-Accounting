@@ -510,7 +510,7 @@ function lsSet(key, value){
   try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
   catch(e){ console.warn('localStorage write failed for', key, e); return false; }
 }
-let lastSalesWriteAt = 0, lastChecksWriteAt = 0;
+let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0;
 const WRITE_COOLDOWN_MS = 20000; // don't let a remote pull clobber a save that's still mid-flight to Sheets
 
 async function loadDB(){
@@ -539,11 +539,11 @@ async function loadDB(){
       clearTimeout(timeoutId);
       const json = await res.json();
       if(json && json.ok){
-        if(json.users){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
-        if(json.branches){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
-        // Skip overwriting sales/checks if THIS device just saved something —
+        // Skip overwriting anything if THIS device just saved something —
         // the push to Sheets may still be in flight, so pulling right now
         // would fetch a stale copy and make the just-saved record "vanish."
+        if(json.users && (Date.now()-lastUsersWriteAt > WRITE_COOLDOWN_MS)){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
+        if(json.branches && (Date.now()-lastBranchesWriteAt > WRITE_COOLDOWN_MS)){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
         if(json.sales && (Date.now()-lastSalesWriteAt > WRITE_COOLDOWN_MS)){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
         if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
       }
@@ -610,10 +610,10 @@ async function pushUsersTableToSheets(throwOnError){
     if(throwOnError) throw e;
   }
 }
-async function saveUsers(){ await cloudSet('sst_users', DB.users); pushUsersTableToSheets(); }
+async function saveUsers(){ lastUsersWriteAt = Date.now(); await cloudSet('sst_users', DB.users); pushUsersTableToSheets(); }
 async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
 async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
-async function saveBranches(){ await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
+async function saveBranches(){ lastBranchesWriteAt = Date.now(); await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
 /* =========================================================
    GOOGLE SHEETS / DRIVE BRIDGE
