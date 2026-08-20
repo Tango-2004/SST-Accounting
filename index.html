@@ -542,8 +542,23 @@ async function loadDB(){
         // Skip overwriting anything if THIS device just saved something —
         // the push to Sheets may still be in flight, so pulling right now
         // would fetch a stale copy and make the just-saved record "vanish."
-        if(json.users && (Date.now()-lastUsersWriteAt > WRITE_COOLDOWN_MS)){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
-        if(json.branches && (Date.now()-lastBranchesWriteAt > WRITE_COOLDOWN_MS)){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
+        if(json.users && (Date.now()-lastUsersWriteAt > WRITE_COOLDOWN_MS)){
+          const remoteUsers = JSON.parse(json.users);
+          // Safety net: never let an empty (or transiently-empty) remote
+          // read wipe out a populated local list — this is what was
+          // causing employees to "disappear entirely" after a while.
+          if(remoteUsers.length > 0 || DB.users.length === 0){
+            DB.users = remoteUsers; lsSet('sst_users', DB.users);
+          } else {
+            console.warn('Ignoring empty remote employee list — keeping local copy to avoid data loss');
+          }
+        }
+        if(json.branches && (Date.now()-lastBranchesWriteAt > WRITE_COOLDOWN_MS)){
+          const remoteBranches = JSON.parse(json.branches);
+          if(remoteBranches.length > 0 || DB.branches.length === 0){
+            DB.branches = remoteBranches; lsSet('sst_branches', DB.branches);
+          }
+        }
         if(json.sales && (Date.now()-lastSalesWriteAt > WRITE_COOLDOWN_MS)){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
         if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
       }
