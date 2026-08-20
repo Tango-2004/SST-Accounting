@@ -192,6 +192,22 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--surface-soft);}
 .table-wrap{overflow-x:auto;border-radius:8px;}
+
+/* Polished bordered "ledger" style for printed/formal reports (combined
+   report, Tab2 cash summary) — clean grid lines, distinct from the app's
+   normal minimal tables which use bottom-border-only rows. */
+.report-table{border-collapse:collapse;width:100%;font-size:13px;border:1.5px solid var(--ink);border-radius:8px;overflow:hidden;}
+.report-table th{background:var(--ink);color:#fff;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:0.3px;padding:9px 12px;border:1px solid var(--ink);text-align:left;}
+.report-table td{padding:8px 12px;border:1px solid var(--border);}
+.report-table tbody tr:nth-child(even){background:var(--surface-soft);}
+.report-table tfoot td{font-weight:700;background:var(--green-soft);border-top:2px solid var(--ink);}
+@media print{
+  .report-table{border:1.5px solid #000 !important;}
+  .report-table th{background:#333 !important;color:#fff !important;border:1px solid #000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .report-table td{border:1px solid #666 !important;}
+  .report-table tbody tr:nth-child(even){background:#f2f2f2 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .report-table tfoot td{background:#e8e8e8 !important;border-top:2px solid #000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
 .empty-state{text-align:center;padding:44px 20px;color:var(--ink-faint);}
 .empty-state .peak-mark{width:26px;height:20px;opacity:0.3;margin-bottom:10px;}
 
@@ -208,6 +224,8 @@ tr:hover td{background:var(--surface-soft);}
 .badge-status-cleared{background:var(--green-soft);color:var(--green-dark);}
 .badge-billed{background:var(--green-soft);color:var(--green-dark);}
 .badge-notbilled{background:var(--warn-soft);color:#95611A;}
+.badge-paid{background:var(--green-soft);color:var(--green-dark);}
+.badge-unpaid{background:var(--red-soft);color:var(--red-dark);}
 
 /* HS / IV type styling for clear visual distinction */
 .type-card{border-left-width:5px;border-left-style:solid;}
@@ -337,6 +355,36 @@ tr:hover td{background:var(--surface-soft);}
 
 .helper-text{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
 .section-divider{height:1px;background:var(--border);margin:22px 0;}
+
+/* ===== Check calendar ===== */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.cal-nav-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--ink);flex-shrink:0;}
+.cal-nav-btn:hover{background:var(--surface-soft);}
+.cal-title{font-family:'Kanit';font-weight:700;font-size:17px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.cal-dow{text-align:center;font-size:11.5px;font-weight:700;color:var(--ink-soft);padding:4px 0 8px;text-transform:uppercase;}
+.cal-cell{
+  min-height:64px;border-radius:9px;border:1.5px solid var(--border);background:#fff;
+  padding:5px 6px;cursor:default;display:flex;flex-direction:column;gap:3px;
+}
+.cal-cell.has-checks{cursor:pointer;}
+.cal-cell.has-checks:hover{border-color:var(--ink-faint);}
+.cal-cell.blank{border:none;background:transparent;}
+.cal-cell.is-today{border-color:var(--green);border-width:2px;}
+.cal-cell.cal-overdue{background:var(--red-soft);border-color:var(--red);}
+.cal-cell.cal-duesoon{background:var(--warn-soft);border-color:var(--warn);}
+.cal-daynum{font-size:12.5px;font-weight:700;color:var(--ink);}
+.cal-cell.cal-overdue .cal-daynum{color:var(--red-dark);}
+.cal-cell.cal-duesoon .cal-daynum{color:#95611A;}
+.cal-chip{font-size:10.5px;font-weight:600;padding:2px 5px;border-radius:6px;background:var(--surface-soft);color:var(--ink-soft);line-height:1.3;}
+.cal-cell.cal-overdue .cal-chip{background:rgba(255,255,255,0.6);color:var(--red-dark);}
+.cal-cell.cal-duesoon .cal-chip{background:rgba(255,255,255,0.6);color:#95611A;}
+@media(max-width:640px){
+  .cal-cell{min-height:46px;padding:4px;}
+  .cal-daynum{font-size:11px;}
+  .cal-chip{font-size:9px;padding:1px 3px;}
+  .cal-dow{font-size:10px;}
+}
 </style>
 </head>
 <body>
@@ -421,6 +469,7 @@ const PAY_TYPES = [
   {id:'transfer', label:'โอนจ่าย', icon:'🏦', badge:'badge-transfer'},
   {id:'deposit', label:'มัดจำ', icon:'📥', badge:'badge-deposit'},
   {id:'check', label:'เช็ค', icon:'🧾', badge:'badge-check'},
+  {id:'unpaid', label:'ยังไม่ได้ชำระ', icon:'⏳', badge:'badge-unpaid'},
 ];
 const BANKS = ['KBANK','BBL'];
 const CHECK_BANKS = ['KBANK','BBL','SCB','KTB','BAY','TMBTHANACHART','GSB','CIMB','UOB'];
@@ -461,6 +510,9 @@ function lsSet(key, value){
   try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
   catch(e){ console.warn('localStorage write failed for', key, e); return false; }
 }
+let lastSalesWriteAt = 0, lastChecksWriteAt = 0;
+const WRITE_COOLDOWN_MS = 20000; // don't let a remote pull clobber a save that's still mid-flight to Sheets
+
 async function loadDB(){
   const u = await safeGet('sst_users');
   const s = await safeGet('sst_sales');
@@ -489,8 +541,11 @@ async function loadDB(){
       if(json && json.ok){
         if(json.users){ DB.users = JSON.parse(json.users); lsSet('sst_users', DB.users); }
         if(json.branches){ DB.branches = JSON.parse(json.branches); lsSet('sst_branches', DB.branches); }
-        if(json.sales){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
-        if(json.checks){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
+        // Skip overwriting sales/checks if THIS device just saved something —
+        // the push to Sheets may still be in flight, so pulling right now
+        // would fetch a stale copy and make the just-saved record "vanish."
+        if(json.sales && (Date.now()-lastSalesWriteAt > WRITE_COOLDOWN_MS)){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
+        if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
       }
     }catch(e){ console.warn('central config fetch failed or timed out, using local copy for this device', e); }
   }
@@ -536,8 +591,8 @@ async function pushConfigToSheets(key, value, throwOnError){
   }
 }
 async function saveUsers(){ await cloudSet('sst_users', DB.users); pushConfigToSheets('users', DB.users); }
-async function saveSales(){ await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
-async function saveChecks(){ await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
+async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
+async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
 async function saveBranches(){ await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
 /* =========================================================
@@ -557,11 +612,14 @@ const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdrGhF
 let APPS_SCRIPT_URL = '';
 async function loadAppsScriptUrl(){
   const saved = await safeGet('sst_apps_script_url');
-  const neverSet = (saved === null || saved === undefined);
-  APPS_SCRIPT_URL = neverSet ? DEFAULT_APPS_SCRIPT_URL : saved;
-  if(neverSet && DEFAULT_APPS_SCRIPT_URL){
-    // first time this device has opened the file — remember the baked-in
-    // default locally too, so Settings shows it as already connected
+  // Treat "never set" AND "empty string" the same way — fall back to the
+  // baked-in default. A device that saved an empty value in an earlier
+  // version of this app (before the default existed) would otherwise be
+  // permanently stuck disconnected even after getting the latest file.
+  const useDefault = (saved === null || saved === undefined || saved === '') && !!DEFAULT_APPS_SCRIPT_URL;
+  APPS_SCRIPT_URL = useDefault ? DEFAULT_APPS_SCRIPT_URL : saved;
+  if(useDefault){
+    // remember the baked-in default locally too, so Settings shows it as already connected
     lsSet('sst_apps_script_url', DEFAULT_APPS_SCRIPT_URL);
   }
 }
@@ -625,10 +683,20 @@ function getBranchList(){
 /* ---------- utils ---------- */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function formatDDMMYYYY(iso){
+  if(!iso) return '';
+  const parts = iso.split('-');
+  if(parts.length!==3) return '';
+  const [y,m,d] = parts;
+  return `${d}/${m}/${y}`;
+}
 function fmtDate(iso){
   if(!iso) return '-';
   const d = new Date(iso+'T00:00:00');
-  return d.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'numeric'});
+  const day = String(d.getDate()).padStart(2,'0');
+  const month = String(d.getMonth()+1).padStart(2,'0');
+  const year = d.getFullYear()+543; // Buddhist Era, matches the rest of the app
+  return `${day}/${month}/${year}`;
 }
 function fmtMoney(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
@@ -714,7 +782,7 @@ function startSync(){
 function canSeeTab(tabId){
   if(!CURRENT) return false;
   if(CURRENT.role==='admin') return true;
-  if(tabId==='dashboard') return true;
+  if(tabId==='dashboard') return !!CURRENT.tabs.tab1;
   if(tabId==='settings') return false;
   if(tabId==='tab3cal') return !!CURRENT.tabs.tab3;
   return !!CURRENT.tabs[tabId];
@@ -829,23 +897,26 @@ function renderDashboard(){
    TAB 1 — SALES REPORT
    ========================================================= */
 function renderTab1(){
-  const today = todayStr();
+  const existingDateEl = document.getElementById('t1Date');
+  const today = existingDateEl ? existingDateEl.value : todayStr();
   const isAdmin = CURRENT.role==='admin';
   let branches = getBranchList();
 
   const payFilterOptions = `<option value="">ทุกประเภทชำระ</option>${PAY_TYPES.map(p=>`<option value="${p.id}" ${window.__t1pay===p.id?'selected':''}>${p.icon} ${p.label}</option>`).join('')}`;
   const filterBar = `
     <div class="filter-bar no-print">
-      <label>วันที่</label><input type="date" id="t1Date" value="${today}" ${!isAdmin?'max="'+maxAllowedDate()+'"':''} onchange="renderShell()">
+      <label>วันที่</label><input type="date" id="t1Date" value="${today}" ${!isAdmin?'max="'+maxAllowedDate()+'"':''} oninput="document.getElementById('t1DateCap').textContent=formatDDMMYYYY(this.value)" onchange="renderShell()"> <span class="helper-text" id="t1DateCap" style="margin:0">${formatDDMMYYYY(today)}</span>
+      <button class="btn btn-outline btn-sm no-print" onclick="document.getElementById('t1Date').value=todayStr();renderShell()">วันนี้</button>
+      ${isAdmin?`
       <label>สาขา</label>
       <select id="t1Branch" onchange="renderShell()">
         <option value="">ทุกสาขา (รวมยอด)</option>
         ${branches.map(b=>`<option value="${escapeHtml(b)}" ${window.__t1branch===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
-      </select>
+      </select>`:''}
       <label>ประเภทชำระ</label>
       <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
     </div>
-    ${!isAdmin?`<div class="helper-text" style="margin:-8px 0 12px">คุณสามารถบันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้ — ลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้</div>`:''}`;
+    ${!isAdmin?`<div class="helper-text" style="margin:-8px 0 12px">คุณเห็นข้อมูลเฉพาะสาขา ${escapeHtml(CURRENT.branch||'-')} เท่านั้น — บันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้ และลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น</div>`:''}`;
 
   return `
     ${filterBar}
@@ -857,9 +928,23 @@ function renderTab1(){
       <button class="btn btn-outline btn-sm" onclick="openCombinedReport()">🖨 ${isAdmin?'พิมพ์รายงานรวมทุกสาขา':'พิมพ์รายงานสาขาของฉัน'}</button>
     </div>
     <div class="card">
-      <div class="card-header">
+      <div class="card-header no-print">
         <div class="card-title">${peakIcon()} ${TAB1_CUSTVIEW==='general'?'ตารางบันทึกลูกค้าทั่วไป':'ตารางบันทึกลูกค้าเครดิต'}</div>
-        <button class="btn btn-primary btn-sm no-print" onclick="openSaleForm()">+ เพิ่มรายการ</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="openCombinePinkBills()">🌸 รวมบิลสีชมพู</button>
+          <button class="btn btn-outline btn-sm" onclick="window.print()">🖨 พิมพ์ตารางนี้</button>
+          <button class="btn btn-primary btn-sm" onclick="openSaleForm()">+ เพิ่มรายการ</button>
+        </div>
+      </div>
+      <div class="print-only" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:2px">
+          <img src="data:image/jpeg;base64,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" style="width:44px;height:auto;flex-shrink:0">
+          <div>
+            <div style="font-family:'Kanit';font-weight:800;font-size:19px;line-height:1.2">SST <span style="color:var(--red)">Accounting</span></div>
+            <div style="font-size:12.5px;color:var(--ink-soft)">${TAB1_CUSTVIEW==='general'?'ตารางบันทึกลูกค้าทั่วไป':'ตารางบันทึกลูกค้าเครดิต'} — วันที่ ${fmtDate(today)}</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--ink-faint)">พิมพ์เมื่อ ${fmtDate(todayStr())} โดย ${escapeHtml(CURRENT.name)}</div>
       </div>
       ${renderTab1Table()}
     </div>
@@ -878,10 +963,15 @@ function renderTab1Table(){
   const date = getTab1FilterDate();
   const isAdmin = CURRENT.role==='admin';
   let rows = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW);
-  const branchEl = document.getElementById('t1Branch');
-  const branch = branchEl ? branchEl.value : '';
-  window.__t1branch = branch;
-  if(branch) rows = rows.filter(s=>s.branch===branch);
+  if(isAdmin){
+    const branchEl = document.getElementById('t1Branch');
+    const branch = branchEl ? branchEl.value : '';
+    window.__t1branch = branch;
+    if(branch) rows = rows.filter(s=>s.branch===branch);
+  } else {
+    // staff only ever see their own branch's records — never other branches'
+    rows = rows.filter(s=>s.branch===CURRENT.branch);
+  }
   const billCounts = {};
   rows.forEach(r=>{ billCounts[r.billNo] = (billCounts[r.billNo]||0)+1; });
   const payEl = document.getElementById('t1Pay');
@@ -894,10 +984,10 @@ function renderTab1Table(){
   }
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
   const isCredit = TAB1_CUSTVIEW==='credit';
-  return `<div class="table-wrap"><table>
+  return `<div class="table-wrap"><table class="report-table">
     <thead><tr>
       <th>ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th>
-      <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th><th>สถานะวางบิล</th>':''}<th>หมายเหตุ</th><th>สาขา / ผู้บันทึก</th><th class="no-print"></th>
+      <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th>':''}<th>หมายเหตุ</th><th>สาขา / ผู้บันทึก</th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${rows.map(r=>{
@@ -905,31 +995,22 @@ function renderTab1Table(){
         return `<tr>
           <td>${r.no}</td>
           <td>${escapeHtml(r.customerName)}</td>
-          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}</td>
+          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
           <td style="text-align:right">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
           <td>${r.bank?escapeHtml(r.bank):'-'}</td>
-          ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td><td><span class="badge ${r.billed?'badge-billed':'badge-notbilled'}">${r.billed?'✓ วางบิลแล้ว':'ยังไม่วางบิล'}</span></td>`:''}
+          ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td>`:''}
           <td>${r.note?escapeHtml(r.note):'-'}</td>
           <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
           <td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
-            ${isCredit?`<button class="btn btn-outline btn-sm" onclick="toggleBilled('${r.id}')">${r.billed?'ยกเลิกวางบิล':'✓ วางบิลแล้ว'}</button>`:''}
-            ${(r.employeeId===CURRENT.id && r.date===todayStr())?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
+            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && r.date===todayStr()))?`<button class="btn btn-outline btn-sm" onclick="editSale('${r.id}')">แก้ไข</button>`:''}
+            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && r.date===todayStr()))?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
           </td>
         </tr>`;
       }).join('')}
     </tbody>
-    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?7:5}"></td></tr></tfoot>
+    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr></tfoot>
   </table></div>`;
-}
-async function toggleBilled(id){
-  const r = DB.sales.find(s=>s.id===id);
-  if(!r) return;
-  r.billed = !r.billed;
-  r.billedDate = r.billed ? todayStr() : null;
-  await saveSales();
-  renderShell();
-  toast(r.billed ? 'บันทึกว่าวางบิลแล้ว' : 'ยกเลิกสถานะวางบิลแล้ว');
 }
 function openCombinedReport(){
   const date = getTab1FilterDate() || todayStr();
@@ -939,7 +1020,7 @@ function openCombinedReport(){
     <div class="modal-header"><div class="modal-title">${peakIcon()} รายงาน${isAdmin?'รวม':''} (ทั่วไป + เครดิต)</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body" id="combinedReportBody">
       <div class="filter-bar no-print" id="crFilterRow" style="margin-bottom:14px">
-        <label>วันที่</label><input type="date" id="crDate" value="${date}" onchange="refreshCombinedReport()">
+        <label>วันที่</label><input type="date" id="crDate" value="${date}" oninput="document.getElementById('crDateCap').textContent=formatDDMMYYYY(this.value)" onchange="refreshCombinedReport()"> <span class="helper-text" id="crDateCap" style="margin:0">${formatDDMMYYYY(date)}</span>
         ${isAdmin ? `
         <label>สาขา</label>
         <select id="crBranch" onchange="refreshCombinedReport()">
@@ -979,39 +1060,45 @@ function buildCombinedReportHtml(date, branchFilter){
   if(!daySales.length){
     return letterhead + `<div class="empty-state">${peakIcon(24)}<div>ไม่มีข้อมูลการขายในวันที่เลือก${branchFilter?' สำหรับ '+escapeHtml(branchFilter):''}</div></div>`;
   }
-  const listedBranches = getBranchList();
-  const branchesWithData = listedBranches.filter(b=>daySales.some(s=>s.branch===b));
-  const extraBranches = [...new Set(daySales.map(s=>s.branch))].filter(b=>!listedBranches.includes(b));
-  const allBranches = branchFilter ? [branchFilter] : [...branchesWithData, ...extraBranches];
-  let grand = 0;
-  let html = letterhead;
-  allBranches.forEach(branch=>{
-    const branchSales = daySales.filter(s=>s.branch===branch);
-    const general = branchSales.filter(s=>s.customerType==='general');
-    const credit = branchSales.filter(s=>s.customerType==='credit');
-    const branchTotal = branchSales.reduce((a,b)=>a+Number(b.amount||0),0);
-    grand += branchTotal;
-    html += `<div class="section-divider"></div>
-      <h3 style="font-family:'Kanit';margin-bottom:2px">${escapeHtml(branch)}</h3>
-      <p class="helper-text" style="margin-top:0">ยอดรวมสาขานี้: ฿ ${fmtMoney(branchTotal)}</p>
-      ${renderMiniSalesTable(general, 'ลูกค้าทั่วไป')}
-      ${renderMiniSalesTable(credit, 'ลูกค้าเครดิต')}
-    `;
-  });
-  html += `<div class="section-divider" style="margin:18px 0 10px;height:2px;background:#000"></div><div style="text-align:right;font-family:'Kanit';font-weight:700;font-size:17px">ยอดรวมทั้งหมด${branchFilter?'':'ทุกสาขา'}: ฿ ${fmtMoney(grand)}</div>`;
-  return html;
+  daySales = [...daySales].sort((a,b)=> (a.branch||'').localeCompare(b.branch||'','th') || a.no-b.no);
+  const grand = daySales.reduce((a,b)=>a+Number(b.amount||0),0);
+  const rowsHtml = daySales.map((r,i)=>{
+    const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
+    return `<tr>
+      <td>${i+1}</td>
+      ${branchFilter?'':`<td>${escapeHtml(r.branch)}</td>`}
+      <td>${r.customerType==='credit'?'เครดิต':'ทั่วไป'}</td>
+      <td>${escapeHtml(r.customerName)}</td>
+      <td>${escapeHtml(r.billNo)}</td>
+      <td style="text-align:right">${fmtMoney(r.amount)}</td>
+      <td>${pt?pt.icon+' '+pt.label:'-'}</td>
+      <td>${r.note?escapeHtml(r.note):'-'}</td>
+    </tr>`;
+  }).join('');
+  return letterhead + `
+    <div class="table-wrap"><table class="report-table">
+      <thead><tr>
+        <th style="width:36px">ลำดับ</th>
+        ${branchFilter?'':'<th>สาขา</th>'}
+        <th>ประเภทลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th><th>หมายเหตุ</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr><td colspan="${branchFilter?4:5}">รวมทั้งหมด${branchFilter?'':'ทุกสาขา'}</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr></tfoot>
+    </table></div>
+  `;
 }
 function renderMiniSalesTable(rows, label){
   if(!rows.length) return `<p class="helper-text">${label}: ไม่มีรายการ</p>`;
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
   return `<div style="margin-bottom:14px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">${label} (รวม ฿ ${fmtMoney(total)})</div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th></tr></thead>
-      <tbody>${rows.map(r=>{
+    <div class="table-wrap"><table class="report-table">
+      <thead><tr><th style="width:36px">ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>${rows.map((r,i)=>{
         const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
-        return `<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${pt?pt.icon+' '+pt.label:'-'}</td></tr>`;
+        return `<tr><td>${i+1}</td><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${pt?pt.icon+' '+pt.label:'-'}</td><td>${r.note?escapeHtml(r.note):'-'}</td></tr>`;
       }).join('')}</tbody>
+      <tfoot><tr><td colspan="3">รวม</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="2"></td></tr></tfoot>
     </table></div>
   </div>`;
 }
@@ -1019,51 +1106,61 @@ function deleteSale(id){
   const idx = DB.sales.findIndex(s=>s.id===id);
   if(idx<0) return;
   const rec = DB.sales[idx];
-  if(rec.date !== todayStr() && CURRENT.role!=='admin'){ toast('ไม่สามารถแก้ไขรายการย้อนหลังได้', true); return; }
+  const isAdmin = CURRENT.role==='admin';
+  const isOwnToday = rec.employeeId===CURRENT.id && rec.date===todayStr();
+  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   DB.sales.splice(idx,1);
   saveSales();
   renderShell();
   toast('ลบรายการแล้ว');
 }
-function openSaleForm(prefill){
+function openSaleForm(prefill, editRecord){
   prefill = prefill || {};
-  window.__selectedPayType = null; // always start unselected so payment type must be chosen explicitly
-  const date = getTab1FilterDate() || todayStr();
-  if(CURRENT.role!=='admin' && date < todayStr()){
+  const e = editRecord || null;
+  window.__selectedPayType = e ? e.paymentType : null;
+  window.__editingSaleId = e ? e.id : null;
+  const date = e ? e.date : (getTab1FilterDate() || todayStr());
+  if(!e && CURRENT.role!=='admin' && date < todayStr()){
     toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
   }
-  const myBranch = CURRENT.role==='admin' ? '' : CURRENT.branch;
-  const existingCount = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW).length;
+  const noValue = e ? e.no : (DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW).length+1);
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} ${prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย'} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${e?'แก้ไขรายการขาย':(prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย')} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       ${prefill.billNo?`<div class="locked-notice">${peakIcon(13)} กำลังเพิ่มการชำระอีกช่องทางสำหรับบิลเลขที่ "${escapeHtml(prefill.billNo)}" — กรอกเฉพาะยอดและช่องทางที่เหลือ</div>`:''}
+      ${e?`<div class="locked-notice">${peakIcon(13)} กำลังแก้ไขรายการนี้ — แก้ไข/ลบได้เฉพาะภายในวันที่บันทึกเดิมเท่านั้น</div>`:''}
       <div class="form-grid">
-        <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${existingCount+1}"></div>
-        <div class="field"><label>วันที่บันทึก</label><input type="date" id="fDate" value="${date}" ${CURRENT.role!=='admin'?'min="'+todayStr()+'"':''}></div>
-        <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="fCustomer" placeholder="ชื่อลูกค้า" value="${escapeHtml(prefill.customerName||'')}"></div>
-        <div class="field"><label>เลขที่บิล</label><input type="text" id="fBill" placeholder="เช่น HS0001 / IV0002" value="${escapeHtml(prefill.billNo||'')}"></div>
-        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01"></div>
+        <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${noValue}"></div>
+        <div class="field"><label>วันที่บันทึก</label><input type="date" id="fDate" value="${date}" ${CURRENT.role!=='admin'?'min="'+todayStr()+'"':''} oninput="document.getElementById('fDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="fDateCap">${formatDDMMYYYY(date)}</span></div>
+        <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="fCustomer" placeholder="ชื่อลูกค้า" value="${escapeHtml(e?e.customerName:(prefill.customerName||''))}"></div>
+        <div class="field"><label>เลขที่บิล</label><input type="text" id="fBill" placeholder="เช่น HS0001 / IV0002" value="${escapeHtml(e?e.billNo:(prefill.billNo||''))}"></div>
+        <div class="field" style="display:flex;align-items:flex-end;padding-bottom:11px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+            <input type="checkbox" id="fPinkBill" ${e&&e.pinkBill?'checked':''} style="width:17px;height:17px;accent-color:var(--red)">
+            <span style="font-size:13.5px">🌸 เป็นบิลสีชมพู</span>
+          </label>
+        </div>
+        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01" value="${e?e.amount:''}"></div>
         <div class="field full">
           <label>ประเภทการชำระเงิน</label>
           <p class="helper-text" style="margin-top:0">ถ้าลูกค้าจ่ายมากกว่า 1 ช่องทาง (เช่น เงินสด + โอน) ให้บันทึกแยกเป็นคนละแถวโดยใช้เลขที่บิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติ</p>
           <div class="pay-options" id="payOptions">
-            ${PAY_TYPES.map(p=>`<div class="pay-opt" data-id="${p.id}" onclick="selectPayType('${p.id}')"><span class="ic">${p.icon}</span>${p.label}</div>`).join('')}
+            ${PAY_TYPES.filter(p=>p.id!=='unpaid' || TAB1_CUSTVIEW==='credit').map(p=>`<div class="pay-opt ${window.__selectedPayType===p.id?'selected':''}" data-id="${p.id}" onclick="selectPayType('${p.id}')"><span class="ic">${p.icon}</span>${p.label}</div>`).join('')}
           </div>
         </div>
-        <div class="field" id="bankField" style="display:none"><label>ธนาคารที่ลูกค้าโอนเข้า</label>
-          <select id="fBank"><option value="">เลือกธนาคาร</option>${BANKS.map(b=>`<option value="${b}">${b}</option>`).join('')}</select>
+        <div class="field" id="bankField" style="display:${e&&(e.paymentType==='transfer'||e.paymentType==='deposit')?'block':'none'}"><label>ธนาคาร</label>
+          <select id="fBank"><option value="">เลือกธนาคาร</option>${BANKS.map(b=>`<option value="${b}" ${e&&e.bank===b?'selected':''}>${b}</option>`).join('')}</select>
         </div>
-        ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30"></div>`:''}
-        <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${prefill.billNo?'ชำระแยกช่องทาง':''}"></div>
-        ${CURRENT.role==='admin'?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
+        ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30" value="${e&&e.creditDays?e.creditDays:''}"></div>`:''}
+        <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.note||''):(prefill.billNo?'ชำระแยกช่องทาง':''))}"></div>
+        ${CURRENT.role==='admin'?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา" value="${escapeHtml(e?e.branch:'')}"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-outline" onclick="window.__editingSaleId=null;closeModal()">ยกเลิก</button>
       <button class="btn btn-outline" onclick="previewSale()">ดูตัวอย่าง</button>
-      <button class="btn btn-primary" onclick="submitSale()">บันทึก</button>
+      <button class="btn btn-primary" onclick="submitSale()">${e?'บันทึกการแก้ไข':'บันทึก'}</button>
     </div>
   `);
 }
@@ -1071,7 +1168,7 @@ window.__selectedPayType = null;
 function selectPayType(id){
   window.__selectedPayType = id;
   document.querySelectorAll('.pay-opt').forEach(el=>el.classList.toggle('selected', el.dataset.id===id));
-  document.getElementById('bankField').style.display = (id==='transfer') ? 'block' : 'none';
+  document.getElementById('bankField').style.display = (id==='transfer'||id==='deposit') ? 'block' : 'none';
 }
 function collectSaleForm(){
   return {
@@ -1081,10 +1178,11 @@ function collectSaleForm(){
     billNo: document.getElementById('fBill').value.trim(),
     amount: Number(document.getElementById('fAmount').value)||0,
     paymentType: window.__selectedPayType,
-    bank: window.__selectedPayType==='transfer' ? document.getElementById('fBank').value : '',
+    bank: (window.__selectedPayType==='transfer'||window.__selectedPayType==='deposit') ? document.getElementById('fBank').value : '',
     note: document.getElementById('fNote').value.trim(),
     branch: CURRENT.role==='admin' ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
     creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
+    pinkBill: document.getElementById('fPinkBill') ? document.getElementById('fPinkBill').checked : false,
   };
 }
 function validateSale(f){
@@ -1127,16 +1225,48 @@ function previewSale(){
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="openSaleForm()">แก้ไข</button>
+      <button class="btn btn-outline" onclick="${window.__editingSaleId?`reopenEditSaleForm()`:`openSaleForm()`}">แก้ไข</button>
       <button class="btn btn-primary" onclick="submitSale()">ยืนยันบันทึก</button>
     </div>
   `);
+}
+function reopenEditSaleForm(){
+  const id = window.__editingSaleId;
+  const rec = DB.sales.find(s=>s.id===id);
+  if(rec) openSaleForm(null, rec);
 }
 async function submitSale(){
   const f = collectSaleForm();
   const err = validateSale(f);
   if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
-  const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now(), billed: TAB1_CUSTVIEW==='credit' ? false : undefined}, f);
+
+  const editId = window.__editingSaleId;
+  if(editId){
+    const idx = DB.sales.findIndex(s=>s.id===editId);
+    if(idx<0){ toast('ไม่พบรายการนี้', true); return; }
+    const existing = DB.sales[idx];
+    const isAdmin = CURRENT.role==='admin';
+    const isOwnToday = existing.employeeId===CURRENT.id && existing.date===todayStr();
+    if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+    const updated = Object.assign({}, existing, f);
+    DB.sales[idx] = updated;
+    try{
+      await saveSales();
+    }catch(e){
+      DB.sales[idx] = existing;
+      console.error('submitSale edit failed', e);
+      toast('บันทึกการแก้ไขไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
+      return;
+    }
+    window.__editingSaleId = null;
+    closeModal();
+    renderShell();
+    toast('แก้ไขรายการเรียบร้อย');
+    pushSaleToSheet(updated);
+    return;
+  }
+
+  const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now()}, f);
   DB.sales.push(rec);
   try{
     await saveSales();
@@ -1151,6 +1281,15 @@ async function submitSale(){
   pushSaleToSheet(rec);
   askSplitPayment(rec);
 }
+function editSale(id){
+  const rec = DB.sales.find(s=>s.id===id);
+  if(!rec) return;
+  const isAdmin = CURRENT.role==='admin';
+  const isOwnToday = rec.employeeId===CURRENT.id && rec.date===todayStr();
+  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  TAB1_CUSTVIEW = rec.customerType;
+  openSaleForm(null, rec);
+}
 function askSplitPayment(rec){
   window.__lastSaleRec = rec;
   const pt = PAY_TYPES.find(p=>p.id===rec.paymentType);
@@ -1159,9 +1298,11 @@ function askSplitPayment(rec){
     <div class="modal-body">
       <p style="margin-top:0">บิลเลขที่ <b>${escapeHtml(rec.billNo)}</b> ของ <b>${escapeHtml(rec.customerName)}</b> — บันทึกยอด ฿${fmtMoney(rec.amount)} (${pt?pt.icon+' '+pt.label:''}) เรียบร้อยแล้ว</p>
       <p class="helper-text">ถ้าลูกค้าชำระบิลนี้มากกว่า 1 ช่องทาง (เช่น จ่ายเงินสดบางส่วน + โอนบางส่วน) กด "เพิ่มการชำระอีกช่องทาง" เพื่อบันทึกยอดส่วนที่เหลือแยกไว้ในบิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติในทุกรายงาน</p>
+      ${rec.pinkBill?`<p class="helper-text">🌸 บิลนี้เป็นบิลสีชมพู — ถ้าต้องการนำไปรวมกับบิลสีชมพูใบอื่นเพื่อออกเป็นเลขที่ IV เดียว กด "รวมบิลสีชมพู" ด้านล่าง</p>`:''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">เสร็จสิ้น</button>
+      ${rec.pinkBill?`<button class="btn btn-outline" onclick="openCombinePinkBills()">🌸 รวมบิลสีชมพู</button>`:''}
       <button class="btn btn-primary" onclick="continueSplitPayment()">+ เพิ่มการชำระอีกช่องทาง</button>
     </div>
   `);
@@ -1170,6 +1311,82 @@ function continueSplitPayment(){
   const rec = window.__lastSaleRec;
   if(!rec) return;
   openSaleForm({customerName: rec.customerName, billNo: rec.billNo});
+}
+
+/* ---- pink-bill (บิลสีชมพู) combining into a single IV ---- */
+function openCombinePinkBills(){
+  const isAdmin = CURRENT.role==='admin';
+  const scopeSales = isAdmin ? DB.sales : DB.sales.filter(s=>s.branch===CURRENT.branch);
+  const candidates = scopeSales.filter(s=>s.pinkBill && !s.combinedInto).sort((a,b)=>(a.date<b.date?1:-1) || a.no-b.no);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} 🌸 รวมบิลสีชมพูเป็น IV</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p class="helper-text" style="margin-top:0">เลือกบิลสีชมพูที่ต้องการรวมกัน (เลือกได้มากกว่า 1 ใบ) ระบบจะรวมยอดให้อัตโนมัติ แล้วให้ตั้งเลขที่ IV สำหรับยอดรวมนี้</p>
+      ${candidates.length ? `
+      <div id="pinkBillList" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:8px">
+        ${candidates.map(s=>`
+          <label style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+            <input type="checkbox" class="pink-bill-check" value="${s.id}" onchange="updatePinkBillTotal()" style="width:16px;height:16px;flex-shrink:0;accent-color:var(--red)">
+            <span style="flex:1;font-size:13px">
+              <b>${escapeHtml(s.customerName)}</b> · ${escapeHtml(s.billNo)} · ฿${fmtMoney(s.amount)}
+              <br><span class="helper-text" style="margin:0">${fmtDate(s.date)} · สาขา ${escapeHtml(s.branch)}</span>
+            </span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="preview-box" style="margin-top:14px">
+        <div class="preview-row"><span class="k">จำนวนที่เลือก</span><span class="v" id="pinkBillCount">0 ใบ</span></div>
+        <div class="preview-row"><span class="k">ยอดรวม</span><span class="v" id="pinkBillTotal">฿ 0.00</span></div>
+      </div>
+      <div class="field full" style="margin-top:14px"><label>เลขที่ IV สำหรับยอดรวมนี้</label><input type="text" id="pinkBillIV" placeholder="เช่น IV693442"></div>
+      ` : `<div class="empty-state">${peakIcon(24)}<div>ไม่มีบิลสีชมพูที่ยังไม่ได้รวม</div></div>`}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      ${candidates.length?`<button class="btn btn-primary" onclick="confirmCombinePinkBills()">รวมบิลและสร้าง IV</button>`:''}
+    </div>
+  `);
+}
+function updatePinkBillTotal(){
+  const checked = Array.from(document.querySelectorAll('.pink-bill-check:checked'));
+  const total = checked.reduce((sum,el)=>{
+    const rec = DB.sales.find(s=>s.id===el.value);
+    return sum + (rec ? Number(rec.amount||0) : 0);
+  }, 0);
+  document.getElementById('pinkBillCount').textContent = checked.length+' ใบ';
+  document.getElementById('pinkBillTotal').textContent = '฿ '+fmtMoney(total);
+}
+async function confirmCombinePinkBills(){
+  const checked = Array.from(document.querySelectorAll('.pink-bill-check:checked')).map(el=>el.value);
+  if(checked.length===0){ toast('กรุณาเลือกบิลสีชมพูอย่างน้อย 1 ใบ', true); return; }
+  const ivInput = document.getElementById('pinkBillIV');
+  const ivNo = ivInput.value.trim();
+  if(!ivNo){ toast('กรุณาใส่เลขที่ IV', true); flagInvalidField('pinkBillIV'); return; }
+  const sourceRecs = checked.map(id=>DB.sales.find(s=>s.id===id)).filter(Boolean);
+  const total = sourceRecs.reduce((a,b)=>a+Number(b.amount||0),0);
+  const first = sourceRecs[0];
+  const combinedRec = {
+    id: uid(), customerType: first.customerType, employeeId: CURRENT.id, employeeName: CURRENT.name,
+    createdAt: Date.now(), no: (DB.sales.filter(s=>s.date===first.date && s.customerType===first.customerType).length+1),
+    date: first.date, customerName: `รวมบิลสีชมพู ${sourceRecs.length} ใบ`, billNo: ivNo, amount: total,
+    paymentType: 'cash', bank: '', note: `รวมจาก: ${sourceRecs.map(s=>s.billNo).join(', ')}`,
+    branch: first.branch, combinedFrom: checked,
+  };
+  DB.sales.push(combinedRec);
+  sourceRecs.forEach(s=>{ s.combinedInto = combinedRec.id; });
+  try{
+    await saveSales();
+  }catch(e){
+    DB.sales.pop();
+    sourceRecs.forEach(s=>{ delete s.combinedInto; });
+    console.error('confirmCombinePinkBills failed', e);
+    toast('รวมบิลไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
+    return;
+  }
+  closeModal();
+  renderShell();
+  toast(`รวมบิลสีชมพู ${sourceRecs.length} ใบเป็น ${ivNo} เรียบร้อย (ยอดรวม ฿${fmtMoney(total)})`);
+  pushSaleToSheet(combinedRec);
 }
 
 /* =========================================================
@@ -1185,12 +1402,12 @@ function renderTab2(){
   if(!availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0];
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
 
-  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW));
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
 
   return `
     <div class="filter-bar no-print">
-      <label>วันที่</label><input type="date" id="t2Date" value="${date}" onchange="renderShell()">
+      <label>วันที่</label><input type="date" id="t2Date" value="${date}" oninput="document.getElementById('t2DateCap').textContent=formatDDMMYYYY(this.value)" onchange="renderShell()"> <span class="helper-text" id="t2DateCap" style="margin:0">${formatDDMMYYYY(date)}</span>
     </div>
     <div class="pill-tabs no-print" style="margin-bottom:16px">
       ${availableViews.map(v=>`<button class="pill-tab ${v==='HS'?'type-hs':'type-iv'} ${TAB2_SUBVIEW===v?'active':''}" onclick="TAB2_SUBVIEW='${v}';renderShell()">เลขบิลขึ้นต้น ${v}</button>`).join('')}
@@ -1215,7 +1432,7 @@ function getTab1FilterDateForTab2(){
 }
 function printTab2Preview(){
   const date = getTab1FilterDateForTab2();
-  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW));
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนพิมพ์ — ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -1228,7 +1445,7 @@ function printTab2Preview(){
         </div>
       </div>
       <div style="font-size:11px;color:var(--ink-faint);margin-bottom:14px">พิมพ์เมื่อ ${fmtDate(todayStr())}</div>
-      <div class="table-wrap" style="margin-top:12px"><table>
+      <div class="table-wrap" style="margin-top:12px"><table class="report-table">
         <thead><tr><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
         <tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('')}</tbody>
         <tfoot><tr style="font-weight:700"><td colspan="2">รวม</td><td style="text-align:right">${fmtMoney(total)}</td><td></td></tr></tfoot>
@@ -1290,12 +1507,13 @@ function getCheckLists(){
 function renderCheckTable(list, isHistory){
   if(!list.length) return `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการ</div></div>`;
   return `<div class="table-wrap"><table>
-    <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>เลขที่บิล</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th class="no-print">การจัดการ</th></tr></thead>
-    <tbody>${list.map(c=>`
+    <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
+    <tbody>${list.map(c=>{
+      const canEditDelete = CURRENT.role==='admin' || (c.enteredBy===CURRENT.id && c.dateReceived===todayStr());
+      return `
       <tr>
         <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
         <td>${fmtDate(c.dateReceived)}</td>
-        <td>${escapeHtml(c.billNo)}</td>
         <td>${escapeHtml(c.company)}</td>
         <td>${escapeHtml(c.bank)}</td>
         <td style="text-align:right">${fmtMoney(c.amount)}</td>
@@ -1303,19 +1521,25 @@ function renderCheckTable(list, isHistory){
         <td>${fmtDate(c.checkDate)}</td>
         ${isHistory?`<td>${fmtDate(c.clearedDate)}</td>`:''}
         <td>${escapeHtml(c.branch)}</td>
+        <td>${c.note?escapeHtml(c.note):'-'}</td>
         <td class="no-print check-list-actions">
           ${c.status==='pending_deposit'?`<button class="btn btn-outline btn-sm" onclick="markDeposited('${c.id}')">✓ นำเข้าธนาคารแล้ว</button>`:''}
           ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}')">✓ ผ่านเช็คแล้ว</button>`:''}
           ${c.status==='cleared'?`<button class="btn btn-outline btn-sm" onclick="returnCheck('${c.id}')">↩ คืนเช็ค</button>`:''}
-          ${CURRENT.role==='admin'?`<button class="btn btn-ghost btn-sm" onclick="deleteCheck('${c.id}')">ลบ</button>`:''}
+          ${canEditDelete?`<button class="btn btn-outline btn-sm" onclick="editCheck('${c.id}')">แก้ไข</button>`:''}
+          ${canEditDelete?`<button class="btn btn-ghost btn-sm" onclick="deleteCheck('${c.id}')">ลบ</button>`:''}
         </td>
-      </tr>`).join('')}
+      </tr>`;
+    }).join('')}
     </tbody>
   </table></div>`;
 }
 async function deleteCheck(id){
   const c = DB.checks.find(x=>x.id===id);
   if(!c) return;
+  const isAdmin = CURRENT.role==='admin';
+  const isOwnToday = c.enteredBy===CURRENT.id && c.dateReceived===todayStr();
+  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
   if(!confirm(`ยืนยันลบรายการเช็ค "${c.checkNo||''}" — ${escapeHtml(c.company||'')}? การลบนี้ไม่สามารถย้อนกลับได้`)) return;
   const idx = DB.checks.findIndex(x=>x.id===id);
   const removed = DB.checks[idx];
@@ -1391,43 +1615,54 @@ async function confirmReturnCheck(id){
   renderShell();
   toast('คืนเช็คแล้ว — เช็คกลับไปอยู่ในรายการรอนำเข้าธนาคาร');
 }
-function openCheckForm(){
+function openCheckForm(editRecord){
   window.__uploadedCheckImgFull = null;
-  window.__uploadedCheckImgThumb = null;
+  window.__uploadedCheckImgThumb = editRecord ? (editRecord.thumb||null) : null;
+  window.__editingCheckId = editRecord ? editRecord.id : null;
   let branches = getBranchList();
+  const c = editRecord;
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} บันทึกเช็ครับใหม่</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${c?'แก้ไขเช็ครับ':'บันทึกเช็ครับใหม่'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       <div class="field full">
         <label>รูปภาพเช็ค</label>
-        <div class="upload-box" id="uploadBox" onclick="document.getElementById('checkFileInput').click()">
-          📎 คลิกเพื่ออัปโหลดรูปเช็ค
+        <div class="upload-box ${c&&c.thumb?'has-image':''}" id="uploadBox" onclick="document.getElementById('checkFileInput').click()">
+          ${c&&c.thumb?`<img src="${c.thumb}">`:'📎 คลิกเพื่ออัปโหลดรูปเช็ค'}
         </div>
+        ${c?`<p class="helper-text" style="margin-top:0">ไม่อัปโหลดใหม่ = ใช้รูปเดิมต่อไป</p>`:''}
         <input type="file" id="checkFileInput" accept="image/*" style="display:none" onchange="handleCheckImage(event)">
       </div>
       <div class="form-grid" style="margin-top:14px">
-        <div class="field"><label>วันที่รับเช็คมา</label><input type="date" id="cDateReceived" value="${todayStr()}"></div>
-        <div class="field"><label>เลขที่บิล</label><input type="text" id="cBillNo" placeholder="เลขที่บิล"></div>
-        <div class="field full"><label>บริษัท (ลูกค้า)</label><input type="text" id="cCompany" placeholder="ชื่อบริษัท / ลูกค้า"></div>
+        <div class="field"><label>วันที่รับเช็คมา</label><input type="date" id="cDateReceived" value="${c?c.dateReceived:todayStr()}" oninput="document.getElementById('cDateReceivedCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="cDateReceivedCap">${formatDDMMYYYY(c?c.dateReceived:todayStr())}</span></div>
+        <div class="field full"><label>บริษัท (ลูกค้า)</label><input type="text" id="cCompany" placeholder="ชื่อบริษัท / ลูกค้า" value="${c?escapeHtml(c.company):''}"></div>
         <div class="field"><label>ธนาคาร</label>
-          <input type="text" id="cBank" list="checkBankList" placeholder="เลือกหรือพิมพ์ชื่อธนาคาร">
+          <input type="text" id="cBank" list="checkBankList" placeholder="เลือกหรือพิมพ์ชื่อธนาคาร" value="${c?escapeHtml(c.bank):''}">
           <datalist id="checkBankList">${CHECK_BANKS.map(b=>`<option value="${b}">`).join('')}</datalist>
         </div>
-        <div class="field"><label>จำนวนเงิน</label><input type="number" id="cAmount" step="0.01" placeholder="0.00"></div>
-        <div class="field"><label>เลขที่เช็ค</label><input type="text" id="cCheckNo" placeholder="เลขที่เช็ค"></div>
-        <div class="field"><label>วันที่ในเช็ค (วันครบกำหนด)</label><input type="date" id="cCheckDate"></div>
+        <div class="field"><label>จำนวนเงิน</label><input type="number" id="cAmount" step="0.01" placeholder="0.00" value="${c?c.amount:''}"></div>
+        <div class="field"><label>เลขที่เช็ค</label><input type="text" id="cCheckNo" placeholder="เลขที่เช็ค" value="${c?escapeHtml(c.checkNo):''}"></div>
+        <div class="field"><label>วันที่ในเช็ค (วันครบกำหนด)</label><input type="date" id="cCheckDate" value="${c?c.checkDate:''}" oninput="document.getElementById('cCheckDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="cCheckDateCap">${formatDDMMYYYY(c?c.checkDate:'')}</span></div>
         <div class="field full"><label>สาขา</label>
-          <input type="text" id="cBranch" list="branchList" value="${CURRENT.role!=='admin'?escapeHtml(CURRENT.branch):''}" placeholder="สาขา">
+          <input type="text" id="cBranch" list="branchList" value="${c?escapeHtml(c.branch):(CURRENT.role!=='admin'?escapeHtml(CURRENT.branch):'')}" placeholder="สาขา">
           <datalist id="branchList">${branches.map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist>
         </div>
+        <div class="field full"><label>หมายเหตุ</label><input type="text" id="cNote" placeholder="(ไม่บังคับ)" value="${c?escapeHtml(c.note||''):''}"></div>
       </div>
       <div class="helper-text">ระบบจะแจ้งเตือนล่วงหน้า 10 วันก่อนถึงวันที่ในเช็ค ให้นำเช็คไปเข้าธนาคาร</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="submitCheck()">บันทึกเช็ค</button>
+      <button class="btn btn-primary" onclick="submitCheck()">${c?'บันทึกการแก้ไข':'บันทึกเช็ค'}</button>
     </div>
   `);
+}
+function editCheck(id){
+  const rec = DB.checks.find(x=>x.id===id);
+  if(!rec) return;
+  const isAdmin = CURRENT.role==='admin';
+  const isOwnToday = rec.enteredBy===CURRENT.id && rec.dateReceived===todayStr();
+  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  openCheckForm(rec);
 }
 function handleCheckImage(ev){
   const file = ev.target.files[0];
@@ -1463,13 +1698,13 @@ function handleCheckImage(ev){
 function collectCheckForm(){
   return {
     dateReceived: document.getElementById('cDateReceived').value,
-    billNo: document.getElementById('cBillNo').value.trim(),
     company: document.getElementById('cCompany').value.trim(),
     bank: document.getElementById('cBank').value,
     amount: Number(document.getElementById('cAmount').value)||0,
     checkNo: document.getElementById('cCheckNo').value.trim(),
     checkDate: document.getElementById('cCheckDate').value,
     branch: document.getElementById('cBranch').value.trim(),
+    note: document.getElementById('cNote').value.trim(),
     thumb: window.__uploadedCheckImgThumb || null,
   };
 }
@@ -1487,6 +1722,36 @@ async function submitCheck(){
   const f = collectCheckForm();
   const err = validateCheck(f);
   if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  const editId = window.__editingCheckId;
+  const fullImg = window.__uploadedCheckImgFull;
+
+  if(editId){
+    const idx = DB.checks.findIndex(x=>x.id===editId);
+    if(idx<0){ toast('ไม่พบรายการเช็คนี้', true); return; }
+    const existing = DB.checks[idx];
+    const updated = Object.assign({}, existing, f);
+    if(!fullImg && !f.thumb){ updated.thumb = existing.thumb; } // no new upload — keep old thumb
+    DB.checks[idx] = updated;
+    try{
+      await saveChecks();
+    }catch(e){
+      DB.checks[idx] = existing;
+      console.error('submitCheck edit failed', e);
+      toast('บันทึกการแก้ไขไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
+      return;
+    }
+    if(fullImg){
+      lsSet('sst_checkimg_'+editId, fullImg);
+      if(window.storage){ try{ await window.storage.set('sst_checkimg_'+editId, JSON.stringify(fullImg), true); }catch(e){} }
+    }
+    window.__editingCheckId = null;
+    closeModal();
+    renderShell();
+    toast('บันทึกการแก้ไขเรียบร้อย');
+    if(fullImg) pushCheckImageToDrive(updated, fullImg);
+    return;
+  }
+
   const rec = Object.assign({id:uid(), status:'pending_deposit', createdAt:Date.now(), enteredBy:CURRENT.id}, f);
   DB.checks.push(rec);
   try{
@@ -1497,7 +1762,6 @@ async function submitCheck(){
     toast('บันทึกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
     return;
   }
-  const fullImg = window.__uploadedCheckImgFull;
   if(fullImg){
     lsSet('sst_checkimg_'+rec.id, fullImg);
     if(window.storage){
@@ -1512,35 +1776,101 @@ async function submitCheck(){
 }
 
 /* ---- calendar view ---- */
+let CAL_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+function calNav(delta){
+  CAL_MONTH = new Date(CAL_MONTH.getFullYear(), CAL_MONTH.getMonth()+delta, 1);
+  renderShell();
+}
+function calGoToday(){
+  CAL_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  renderShell();
+}
 function renderTab3Cal(){
   const today = todayStr();
-  const active = DB.checks.filter(c=>c.status!=='cleared');
-  active.sort((a,b)=>new Date(a.checkDate)-new Date(b.checkDate));
-  const overdue = active.filter(c=>daysBetween(today,c.checkDate)<0);
-  const dueSoon = active.filter(c=>{const d=daysBetween(today,c.checkDate); return d>=0 && d<=10;});
-  const upcoming = active.filter(c=>daysBetween(today,c.checkDate)>10);
+  const active = DB.checks.filter(c=>c.status!=='cleared' && c.checkDate);
 
-  function checkRow(c){
-    const d = daysBetween(today,c.checkDate);
-    let badge = d<0 ? `<span class="badge badge-check">เลยกำหนด ${Math.abs(d)} วัน</span>`
-      : d<=10 ? `<span class="badge badge-status-pending">เหลือ ${d} วัน</span>`
-      : `<span class="badge badge-status-deposited">อีก ${d} วัน</span>`;
-    return `<tr>
-      <td>${fmtDate(c.checkDate)}</td><td>${escapeHtml(c.company)}</td><td>${escapeHtml(c.checkNo)}</td>
-      <td style="text-align:right">${fmtMoney(c.amount)}</td>
-      <td><span class="badge badge-status-${c.status==='deposited'?'deposited':'pending'}">${c.status==='deposited'?'นำเข้าธนาคารแล้ว':'รอนำเข้า'}</span></td>
-      <td>${badge}</td>
-    </tr>`;
-  }
-  function block(title, rows, emptyMsg){
-    return `<div class="card"><div class="card-header"><div class="card-title">${peakIcon()} ${title} (${rows.length})</div></div>
-      ${rows.length?`<div class="table-wrap"><table><thead><tr><th>วันที่ในเช็ค</th><th>บริษัท</th><th>เลขที่เช็ค</th><th style="text-align:right">จำนวนเงิน</th><th>สถานะ</th><th>กำหนดการ</th></tr></thead><tbody>${rows.map(checkRow).join('')}</tbody></table></div>`
-      :`<div class="empty-state">${peakIcon(22)}<div>${emptyMsg}</div></div>`}
+  const year = CAL_MONTH.getFullYear();
+  const month = CAL_MONTH.getMonth();
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const monthLabel = CAL_MONTH.toLocaleDateString('th-TH', {month:'long', year:'numeric'});
+  const dowLabels = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  // group active checks by date string for quick lookup
+  const byDate = {};
+  active.forEach(c=>{ (byDate[c.checkDate] = byDate[c.checkDate] || []).push(c); });
+
+  let cells = '';
+  for(let i=0;i<firstDow;i++){ cells += `<div class="cal-cell blank"></div>`; }
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const checksToday = byDate[dateStr] || [];
+    const isToday = dateStr === today;
+    const d = daysBetween(today, dateStr);
+    let stateClass = '';
+    if(checksToday.length){
+      stateClass = d<0 ? 'cal-overdue' : (d<=10 ? 'cal-duesoon' : '');
+    }
+    const chipSummary = checksToday.length ? `<div class="cal-chip">${checksToday.length} ใบ · ฿${fmtMoney(checksToday.reduce((a,b)=>a+Number(b.amount||0),0))}</div>` : '';
+    cells += `<div class="cal-cell ${checksToday.length?'has-checks':''} ${isToday?'is-today':''} ${stateClass}" ${checksToday.length?`onclick="openCalDay('${dateStr}')"`:''}>
+      <div class="cal-daynum">${day}</div>
+      ${chipSummary}
     </div>`;
   }
-  return block('เลยกำหนดนำเข้าธนาคารแล้ว', overdue, 'ไม่มีเช็คที่เลยกำหนด')
-    + block('ใกล้ถึงกำหนด (ภายใน 10 วัน)', dueSoon, 'ไม่มีเช็คที่ใกล้ถึงกำหนด')
-    + block('เช็คที่ยังไม่ถึงกำหนด', upcoming, 'ไม่มีรายการ');
+
+  const overdueCount = active.filter(c=>daysBetween(today,c.checkDate)<0).length;
+  const dueSoonCount = active.filter(c=>{const d=daysBetween(today,c.checkDate); return d>=0 && d<=10;}).length;
+
+  return `
+    <div class="card">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calNav(-1)">‹</button>
+        <div style="text-align:center">
+          <div class="cal-title">${monthLabel}</div>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 10px" onclick="calGoToday()">วันนี้</button>
+        </div>
+        <button class="cal-nav-btn" onclick="calNav(1)">›</button>
+      </div>
+      <div class="grid grid-3" style="margin-bottom:16px">
+        <div class="stat-card accent-red"><div class="label">เลยกำหนดแล้ว</div><div class="value">${overdueCount} ใบ</div></div>
+        <div class="stat-card"><div class="label">ใกล้ถึงกำหนด (≤10 วัน)</div><div class="value">${dueSoonCount} ใบ</div></div>
+        <div class="stat-card accent-green"><div class="label">เช็คทั้งหมดที่รอ</div><div class="value">${active.length} ใบ</div></div>
+      </div>
+      <div class="cal-grid">
+        ${dowLabels.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+        ${cells}
+      </div>
+      <p class="helper-text" style="margin-top:14px">🔴 สีแดง = เลยกำหนดนำเข้าธนาคารแล้ว &nbsp; 🟡 สีเหลือง = ใกล้ถึงกำหนด (ภายใน 10 วัน) &nbsp; แตะวันที่มีตัวเลขเพื่อดูรายละเอียดเช็ค</p>
+    </div>
+  `;
+}
+function openCalDay(dateStr){
+  const checks = DB.checks.filter(c=>c.checkDate===dateStr && c.status!=='cleared');
+  const today = todayStr();
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} เช็คที่ครบกำหนดวันที่ ${fmtDate(dateStr)}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      ${checks.length ? checks.map(c=>{
+        const d = daysBetween(today, dateStr);
+        const badge = d<0 ? `<span class="badge badge-check">เลยกำหนด ${Math.abs(d)} วัน</span>` : d<=10 ? `<span class="badge badge-status-pending">เหลือ ${d} วัน</span>` : `<span class="badge badge-status-deposited">อีก ${d} วัน</span>`;
+        return `<div class="emp-row" style="align-items:flex-start">
+          <div class="emp-avatar">${peakIcon(14)}</div>
+          <div class="emp-meta">
+            <div class="emp-name">${escapeHtml(c.company)} — ฿${fmtMoney(c.amount)}</div>
+            <div class="emp-sub">เลขที่เช็ค ${escapeHtml(c.checkNo)} · ${escapeHtml(c.bank)} · สาขา ${escapeHtml(c.branch)}</div>
+            <div style="margin-top:6px">${badge} <span class="badge badge-status-${c.status==='deposited'?'deposited':'pending'}">${c.status==='deposited'?'นำเข้าธนาคารแล้ว':'รอนำเข้า'}</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${c.status==='pending_deposit'?`<button class="btn btn-outline btn-sm" onclick="markDeposited('${c.id}');closeModal();openCalDay('${dateStr}')">✓ นำเข้าธนาคารแล้ว</button>`:''}
+            ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}');closeModal()">✓ ผ่านเช็คแล้ว</button>`:''}
+          </div>
+        </div>`;
+      }).join('') : `<div class="empty-state">${peakIcon(22)}<div>ไม่มีเช็คครบกำหนดวันนี้</div></div>`}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+    </div>
+  `);
 }
 
 /* =========================================================
@@ -1571,7 +1901,7 @@ function renderSettings(){
         <div class="emp-row">
           <div class="emp-avatar">${u.name.slice(0,1).toUpperCase()}</div>
           <div class="emp-meta">
-            <div class="emp-name">${escapeHtml(u.name)} ${u.role==='admin'?'<span class="badge badge-hs">Admin</span>':''}</div>
+            <div class="emp-name">${escapeHtml(u.name)} ${u.role==='admin'?'<span class="badge badge-hs">Admin</span>':''}${u.role==='accounting'?'<span class="badge badge-iv">บัญชี</span>':''}</div>
             <div class="emp-sub">User ID: ${escapeHtml(u.id)} ${u.role==='staff'?'· '+escapeHtml(u.branch||'-'):''}</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="openUserForm('${u.id}')">แก้ไข</button>
@@ -1599,6 +1929,15 @@ function renderSettings(){
       ` : ''}
     </div>
     ${APPS_SCRIPT_URL ? renderDriveUploadBlock() : ''}
+    ${CURRENT.role==='admin' ? `
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} สำรองข้อมูล</div></div>
+      <p class="helper-text" style="margin-top:0">ดาวน์โหลดสำเนาข้อมูลทั้งหมดในเครื่องนี้เก็บไว้เป็นไฟล์ — ป้องกันข้อมูลสูญหาย ใช้เปิดดูด้วย Excel/Google Sheets ได้</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="exportSalesCSV()">⬇ ดาวน์โหลดยอดขาย (CSV)</button>
+        <button class="btn btn-outline btn-sm" onclick="exportChecksCSV()">⬇ ดาวน์โหลดเช็ครับ (CSV)</button>
+      </div>
+    </div>` : ''}
     <div class="card settings-block">
       <div class="card-header"><div class="card-title">${peakIcon()} เปลี่ยนรหัสผ่านของฉัน</div></div>
       <div class="form-grid">
@@ -1667,6 +2006,22 @@ async function bulkUploadChecksToDrive(){
 }
 async function pushLocalUsersAndBranchesToSheets(){
   if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
+  // Safety check: if the central copy on Sheets already has MORE employees
+  // than this device does, warn loudly before overwriting — this is the
+  // #1 way a permanent employee list accidentally gets wiped back down.
+  try{
+    const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig');
+    const remote = await res.json();
+    const remoteUsers = remote && remote.users ? JSON.parse(remote.users) : [];
+    if(remoteUsers.length > DB.users.length){
+      const proceed = confirm(
+        `⚠️ คำเตือน: ตอนนี้ Google Sheets มีรายชื่อพนักงาน ${remoteUsers.length} คน แต่เครื่องนี้มีแค่ ${DB.users.length} คน\n\n` +
+        `ถ้ากดส่งต่อ รายชื่อที่หายไปจาก Sheets จะถูกลบทิ้งถาวร!\n\n` +
+        `กด OK เฉพาะถ้ามั่นใจว่าเครื่องนี้ถูกต้องที่สุดจริงๆ`
+      );
+      if(!proceed) return;
+    }
+  }catch(e){ console.warn('pre-push safety check failed, proceeding anyway', e); }
   if(!confirm('ยืนยันส่งข้อมูลของเครื่องนี้ (พนักงาน, สาขา, ยอดขาย, เช็ครับ) ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
   try{
     await pushConfigToSheets('users', DB.users, true);
@@ -1732,6 +2087,7 @@ function openUserForm(id){
         <div class="field"><label>บทบาท</label>
           <select id="uRole" onchange="toggleStaffFields()">
             <option value="staff" ${u&&u.role==='staff'?'selected':''}>พนักงาน</option>
+            <option value="accounting" ${u&&u.role==='accounting'?'selected':''}>พนักงานบัญชี (เห็นเงินสด+เช็ค ทั้ง 2 สาขา)</option>
             <option value="admin" ${u&&u.role==='admin'?'selected':''}>ผู้ดูแลระบบ (Admin)</option>
           </select>
         </div>
@@ -1745,9 +2101,10 @@ function openUserForm(id){
           <tr><td>ยอดรวมเงินสด (Tab 2)</td><td><label class="toggle"><input type="checkbox" id="pTab2" ${u&&u.tabs.tab2?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
           <tr><td>&nbsp;&nbsp;↳ เข้าถึง HS</td><td><label class="toggle"><input type="checkbox" id="pHS" ${u&&u.hsre&&u.hsre.HS?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
           <tr><td>&nbsp;&nbsp;↳ เข้าถึง IV</td><td><label class="toggle"><input type="checkbox" id="pIV" ${u&&u.hsre&&u.hsre.IV?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
-          <tr><td>เช็ครับลูกหนี้ (Tab 3)</td><td><label class="toggle"><input type="checkbox" id="pTab3" ${u&&u.tabs.tab3?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
+          <tr><td>เช็ครับลูกหนี้ (Tab 3) + ปฏิทินเช็ครับ</td><td><label class="toggle"><input type="checkbox" id="pTab3" ${u&&u.tabs.tab3?'checked':''}><span class="track"><span class="thumb"></span></span></label></td></tr>
         </table>
       </div>
+      <div id="accountingNotice" class="locked-notice" style="display:none">${peakIcon(13)} บัญชีนี้จะเห็นเฉพาะ <b>ยอดรวมเงินสด (HS+IV)</b> และ <b>เช็ครับลูกหนี้ + ปฏิทินเช็ครับ</b> ของ<b>ทั้ง 2 สาขา</b> โดยอัตโนมัติ ไม่เห็นรายงานการขาย ไม่ต้องตั้งค่าเพิ่ม</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
@@ -1756,10 +2113,39 @@ function openUserForm(id){
   `);
   setTimeout(toggleStaffFields, 0);
 }
+function csvEscape(v){
+  const s = String(v==null?'':v);
+  if(/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function downloadCSV(filename, rows){
+  const csv = rows.map(row=>row.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportSalesCSV(){
+  const header = ['วันที่','ลำดับ','ประเภทลูกค้า','ชื่อลูกค้า','เลขที่บิล','ยอดเงิน','ประเภทชำระ','ธนาคาร','เครดิต(วัน)','หมายเหตุ','สาขา','ผู้บันทึก'];
+  const rows = [header, ...DB.sales.map(r=>[r.date,r.no,r.customerType==='credit'?'เครดิต':'ทั่วไป',r.customerName,r.billNo,r.amount,r.paymentType,r.bank||'',r.creditDays||'',r.note||'',r.branch,r.employeeName])];
+  downloadCSV('SST-ยอดขาย-'+todayStr()+'.csv', rows);
+  toast('ดาวน์โหลดไฟล์ยอดขายแล้ว');
+}
+function exportChecksCSV(){
+  const header = ['วันที่รับ','เลขที่บิล','บริษัท','ธนาคาร','จำนวนเงิน','เลขที่เช็ค','วันที่ในเช็ค','สาขา','สถานะ'];
+  const statusLabel = {pending_deposit:'รอนำเข้าธนาคาร', deposited:'นำเข้าธนาคารแล้ว', cleared:'ผ่านเช็คแล้ว'};
+  const rows = [header, ...DB.checks.map(c=>[c.dateReceived,c.billNo||'',c.company,c.bank,c.amount,c.checkNo,c.checkDate,c.branch,statusLabel[c.status]||c.status])];
+  downloadCSV('SST-เช็ครับ-'+todayStr()+'.csv', rows);
+  toast('ดาวน์โหลดไฟล์เช็ครับแล้ว');
+}
+
 function toggleStaffFields(){
   const role = document.getElementById('uRole').value;
-  document.getElementById('permBlockWrap').style.display = role==='admin' ? 'none' : 'block';
-  document.getElementById('branchFieldWrap').style.display = role==='admin' ? 'none' : 'block';
+  document.getElementById('permBlockWrap').style.display = role==='staff' ? 'block' : 'none';
+  document.getElementById('accountingNotice').style.display = role==='accounting' ? 'flex' : 'none';
+  document.getElementById('branchFieldWrap').style.display = role==='staff' ? 'block' : 'none';
 }
 async function saveUserForm(existingId){
   const id = document.getElementById('uId').value.trim();
@@ -1775,7 +2161,7 @@ async function saveUserForm(existingId){
       tab1: document.getElementById('pTab1').checked,
       tab2: document.getElementById('pTab2').checked,
       tab3: document.getElementById('pTab3').checked,
-    } : {tab1:true,tab2:true,tab3:true},
+    } : role==='accounting' ? {tab1:false,tab2:true,tab3:true} : {tab1:true,tab2:true,tab3:true},
     hsre: role==='staff' ? {
       HS: document.getElementById('pHS').checked,
       IV: document.getElementById('pIV').checked,
