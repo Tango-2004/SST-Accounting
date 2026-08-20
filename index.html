@@ -720,6 +720,13 @@ function fmtDate(iso){
 }
 function fmtMoney(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+function isWithinEditWindow(dateStr){
+  // Staff can edit/delete their own record on the day it was recorded AND
+  // the following day — anything 2+ days old is locked (Admin unaffected).
+  if(!dateStr) return false;
+  const diffDays = daysBetween(dateStr, todayStr()); // positive if dateStr is in the past
+  return diffDays <= 1;
+}
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function toast(msg, isErr){
   const wrap = document.getElementById('toastWrap');
@@ -936,7 +943,7 @@ function renderTab1(){
       <label>ประเภทชำระ</label>
       <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
     </div>
-    ${!isAdmin?`<div class="helper-text" style="margin:-8px 0 12px">คุณเห็นข้อมูลเฉพาะสาขา ${escapeHtml(CURRENT.branch||'-')} เท่านั้น — บันทึกล่วงหน้าได้ แต่แก้ไข/บันทึกย้อนหลังไม่ได้ และลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น</div>`:''}`;
+    ${!isAdmin?`<div class="helper-text" style="margin:-8px 0 12px">คุณเห็นข้อมูลเฉพาะสาขา ${escapeHtml(CURRENT.branch||'-')} เท่านั้น — บันทึกล่วงหน้าได้ แต่บันทึกรายการใหม่ย้อนหลังไม่ได้ ส่วนการแก้ไข/ลบ ทำได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น (เกิน 1 วันแล้วแก้ไข/ลบไม่ได้)</div>`:''}`;
 
   return `
     ${filterBar}
@@ -1023,8 +1030,8 @@ function renderTab1Table(){
           <td>${r.note?escapeHtml(r.note):'-'}</td>
           <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
           <td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
-            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && r.date===todayStr()))?`<button class="btn btn-outline btn-sm" onclick="editSale('${r.id}')">แก้ไข</button>`:''}
-            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && r.date===todayStr()))?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
+            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-outline btn-sm" onclick="editSale('${r.id}')">แก้ไข</button>`:''}
+            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
           </td>
         </tr>`;
       }).join('')}
@@ -1127,8 +1134,8 @@ function deleteSale(id){
   if(idx<0) return;
   const rec = DB.sales[idx];
   const isAdmin = CURRENT.role==='admin';
-  const isOwnToday = rec.employeeId===CURRENT.id && rec.date===todayStr();
-  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
+  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   DB.sales.splice(idx,1);
   saveSales();
@@ -1166,7 +1173,7 @@ function openSaleForm(prefill, editRecord){
           <label>ประเภทการชำระเงิน</label>
           <p class="helper-text" style="margin-top:0">ถ้าลูกค้าจ่ายมากกว่า 1 ช่องทาง (เช่น เงินสด + โอน) ให้บันทึกแยกเป็นคนละแถวโดยใช้เลขที่บิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติ</p>
           <div class="pay-options" id="payOptions">
-            ${PAY_TYPES.filter(p=>p.id!=='unpaid' || TAB1_CUSTVIEW==='credit').map(p=>`<div class="pay-opt ${window.__selectedPayType===p.id?'selected':''}" data-id="${p.id}" onclick="selectPayType('${p.id}')"><span class="ic">${p.icon}</span>${p.label}</div>`).join('')}
+            ${PAY_TYPES.map(p=>`<div class="pay-opt ${window.__selectedPayType===p.id?'selected':''}" data-id="${p.id}" onclick="selectPayType('${p.id}')"><span class="ic">${p.icon}</span>${p.label}</div>`).join('')}
           </div>
         </div>
         <div class="field" id="bankField" style="display:${e&&(e.paymentType==='transfer'||e.paymentType==='deposit')?'block':'none'}"><label>ธนาคาร</label>
@@ -1266,8 +1273,8 @@ async function submitSale(){
     if(idx<0){ toast('ไม่พบรายการนี้', true); return; }
     const existing = DB.sales[idx];
     const isAdmin = CURRENT.role==='admin';
-    const isOwnToday = existing.employeeId===CURRENT.id && existing.date===todayStr();
-    if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+    const isOwnToday = existing.employeeId===CURRENT.id && isWithinEditWindow(existing.date);
+    if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
     const updated = Object.assign({}, existing, f);
     DB.sales[idx] = updated;
     try{
@@ -1305,8 +1312,8 @@ function editSale(id){
   const rec = DB.sales.find(s=>s.id===id);
   if(!rec) return;
   const isAdmin = CURRENT.role==='admin';
-  const isOwnToday = rec.employeeId===CURRENT.id && rec.date===todayStr();
-  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
+  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   TAB1_CUSTVIEW = rec.customerType;
   openSaleForm(null, rec);
 }
@@ -1529,7 +1536,7 @@ function renderCheckTable(list, isHistory){
   return `<div class="table-wrap"><table>
     <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
     <tbody>${list.map(c=>{
-      const canEditDelete = CURRENT.role==='admin' || (c.enteredBy===CURRENT.id && c.dateReceived===todayStr());
+      const canEditDelete = CURRENT.role==='admin' || (c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived));
       return `
       <tr>
         <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
@@ -1558,8 +1565,8 @@ async function deleteCheck(id){
   const c = DB.checks.find(x=>x.id===id);
   if(!c) return;
   const isAdmin = CURRENT.role==='admin';
-  const isOwnToday = c.enteredBy===CURRENT.id && c.dateReceived===todayStr();
-  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  const isOwnToday = c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived);
+  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   if(!confirm(`ยืนยันลบรายการเช็ค "${c.checkNo||''}" — ${escapeHtml(c.company||'')}? การลบนี้ไม่สามารถย้อนกลับได้`)) return;
   const idx = DB.checks.findIndex(x=>x.id===id);
   const removed = DB.checks[idx];
@@ -1680,8 +1687,8 @@ function editCheck(id){
   const rec = DB.checks.find(x=>x.id===id);
   if(!rec) return;
   const isAdmin = CURRENT.role==='admin';
-  const isOwnToday = rec.enteredBy===CURRENT.id && rec.dateReceived===todayStr();
-  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้เท่านั้น', true); return; }
+  const isOwnToday = rec.enteredBy===CURRENT.id && isWithinEditWindow(rec.dateReceived);
+  if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   openCheckForm(rec);
 }
 function handleCheckImage(ev){
