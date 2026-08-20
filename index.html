@@ -254,7 +254,7 @@ tr:hover td{background:var(--surface-soft);}
 
 .perm-table td{padding:7px 10px;}
 .check-list-actions{display:flex;gap:8px;}
-.toggle{position:relative;width:38px;height:22px;flex-shrink:0;}
+.toggle{position:relative;display:inline-block;width:38px;height:22px;flex-shrink:0;vertical-align:middle;}
 .toggle input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;}
 .toggle .track{position:absolute;inset:0;background:var(--border);border-radius:20px;transition:.15s;}
 .toggle .thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
@@ -590,7 +590,27 @@ async function pushConfigToSheets(key, value, throwOnError){
     if(throwOnError) throw e;
   }
 }
-async function saveUsers(){ await cloudSet('sst_users', DB.users); pushConfigToSheets('users', DB.users); }
+async function pushUsersTableToSheets(throwOnError){
+  // Employees now live as real, editable rows in a Google Sheet tab (not a
+  // JSON blob) — Admin can add/edit rows directly in Sheets and the app
+  // will pick them up on next sync, no app access required.
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveUsersTable', data:{ users: DB.users } })
+    });
+    let json = null;
+    try{ json = await res.json(); }catch(parseErr){}
+    if(!res.ok || !json || json.ok !== true){
+      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกรายชื่อพนักงานสำเร็จ (HTTP '+res.status+')');
+    }
+  }catch(e){
+    console.warn('pushUsersTableToSheets failed (saved on this device only)', e);
+    if(throwOnError) throw e;
+  }
+}
+async function saveUsers(){ await cloudSet('sst_users', DB.users); pushUsersTableToSheets(); }
 async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
 async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
 async function saveBranches(){ await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
@@ -2024,7 +2044,7 @@ async function pushLocalUsersAndBranchesToSheets(){
   }catch(e){ console.warn('pre-push safety check failed, proceeding anyway', e); }
   if(!confirm('ยืนยันส่งข้อมูลของเครื่องนี้ (พนักงาน, สาขา, ยอดขาย, เช็ครับ) ขึ้น Google Sheets? การทำนี้จะเขียนทับข้อมูลกลางที่มีอยู่')) return;
   try{
-    await pushConfigToSheets('users', DB.users, true);
+    await pushUsersTableToSheets(true);
     await pushConfigToSheets('branches', DB.branches, true);
     await pushConfigToSheets('sales', DB.sales, true);
     await pushConfigToSheets('checks', DB.checks, true);
