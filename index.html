@@ -202,11 +202,15 @@ tr:hover td{background:var(--surface-soft);}
 .report-table tbody tr:nth-child(even){background:var(--surface-soft);}
 .report-table tfoot td{font-weight:700;background:var(--green-soft);border-top:2px solid var(--ink);}
 @media print{
-  .report-table{border:1.5px solid #4C7A2A !important;}
-  .report-table th{background:#4C7A2A !important;color:#fff !important;border:1px solid #3C6220 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .report-table td{border:1px solid #C8DCB4 !important;}
-  .report-table tbody tr:nth-child(even){background:#F1F7EA !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .report-table tfoot td{background:#DCEBC9 !important;border-top:2px solid #4C7A2A !important;color:#2E4A15 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .report-table{border:1.5px solid #B8DCC0 !important;}
+  .report-table th{
+    background:linear-gradient(135deg, #AEDBC0 0%, #CDE9D6 100%) !important;
+    color:#2F5233 !important;border:1px solid #B8DCC0 !important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .report-table td{border:1px solid #E4F1E7 !important;}
+  .report-table tbody tr:nth-child(even){background:#F6FBF7 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .report-table tfoot td{background:#FDECC8 !important;border-top:2px solid #E8C77D !important;color:#7A5C1E !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 }
 .empty-state{text-align:center;padding:44px 20px;color:var(--ink-faint);}
 .empty-state .peak-mark{width:26px;height:20px;opacity:0.3;margin-bottom:10px;}
@@ -341,7 +345,7 @@ tr:hover td{background:var(--surface-soft);}
   .modal-footer{display:none !important;}
 
   /* Compact, formal letterhead — smaller and tighter than the on-screen version */
-  .report-letterhead{margin-bottom:8px !important;padding-bottom:6px !important;border-bottom:1.5px solid #000 !important;}
+  .report-letterhead{margin-bottom:10px !important;padding:0 0 8px 0 !important;border-bottom:2px solid #AEDBC0 !important;}
   .report-letterhead img{width:30px !important;}
   .report-letterhead .rl-title{font-size:14px !important;}
   .report-letterhead .rl-sub{font-size:10px !important;}
@@ -355,8 +359,15 @@ tr:hover td{background:var(--surface-soft);}
   .section-divider{background:#000;height:1px;}
   table{page-break-inside:auto;}
   tr{page-break-inside:avoid;page-break-after:auto;}
-  th{background:var(--green-soft) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:var(--green-dark) !important;}
-  .badge{padding:0px 5px !important;font-size:8.5px !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  th{background:#DCEFE1 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#2F5233 !important;}
+  .badge{padding:1px 6px !important;font-size:8.5px !important;border-radius:10px !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  /* Soft pastel palette per payment type — cohesive, easy on the eyes */
+  .badge-cash{background:#DCF2E3 !important;color:#3D7A4F !important;}
+  .badge-credit{background:#DCE9F7 !important;color:#3A5F8A !important;}
+  .badge-transfer{background:#EAE0F5 !important;color:#6B4A94 !important;}
+  .badge-deposit{background:#FCEBD1 !important;color:#9A6A24 !important;}
+  .badge-check{background:#FBE0DE !important;color:#B3453A !important;}
+  .badge-unpaid{background:#F7DCE0 !important;color:#A8425A !important;}
   .card{box-shadow:none !important;border:none !important;padding:0 !important;}
   .empty-state{padding:20px !important;}
 
