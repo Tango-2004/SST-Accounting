@@ -317,6 +317,10 @@ tr:hover td{background:var(--surface-soft);}
 }
 @media print{
   .sidebar,.topbar,.mobile-topbar,.no-print{display:none !important;}
+  /* When printing a report shown in a popup, hide the normal page behind
+     it — otherwise both the popup report and the underlying page print
+     together as two separate reports stacked one after another. */
+  body.printing-modal-report .content{display:none !important;}
   .main{margin-left:0 !important;width:100% !important;}
   body{background:#fff;font-size:11px;}
 
@@ -1108,7 +1112,7 @@ function renderTab1Table(){
     <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr></tfoot>
   </table></div>`;
 }
-function printReport(containerId){
+function printReport(containerId, isModal){
   // Auto-shrink the report to fit one printed page (A4 landscape) using
   // CSS zoom — measured against the actual rendered content size, so it
   // adapts to however many rows/columns are in this particular report.
@@ -1121,6 +1125,19 @@ function printReport(containerId){
     const pageWidthPx = ((297-16)/25.4)*96;  // A4 landscape usable width at 8mm margins
     const scale = Math.min(1, pageHeightPx/contentHeightPx, pageWidthPx/contentWidthPx);
     el.style.zoom = scale < 1 ? scale : '1';
+  }
+  if(isModal){
+    // When printing a report that's shown in a popup, the normal page
+    // behind it is still fully present in the DOM — without this, both
+    // the popup report AND the underlying page print out together (two
+    // separate reports stacked one after another).
+    document.body.classList.add('printing-modal-report');
+    const cleanup = function(){
+      document.body.classList.remove('printing-modal-report');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 10000); // safety net in case 'afterprint' doesn't fire on this browser
   }
   window.print();
 }
@@ -1144,7 +1161,7 @@ function openCombinedReport(){
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-      <button class="btn btn-primary" onclick="printReport('combinedReportBody')">พิมพ์เอกสาร</button>
+      <button class="btn btn-primary" onclick="printReport('combinedReportBody', true)">พิมพ์เอกสาร</button>
     </div>
   `);
 }
@@ -1569,7 +1586,7 @@ function printTab2Preview(){
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-      <button class="btn btn-primary" onclick="printReport('tab2PreviewBody')">พิมพ์เอกสาร</button>
+      <button class="btn btn-primary" onclick="printReport('tab2PreviewBody', true)">พิมพ์เอกสาร</button>
     </div>
   `);
 }
