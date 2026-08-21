@@ -326,7 +326,7 @@ tr:hover td{background:var(--surface-soft);}
      together as two separate reports stacked one after another. */
   body.printing-modal-report .content{display:none !important;}
   .main{margin-left:0 !important;width:100% !important;}
-  body{background:#fff;font-size:11px;}
+  body{background:#fff;font-size:12.5px;}
 
   /* Modal-based reports (combined report, Tab2 preview) must print their
      FULL content, not just the scrollable viewport that's visible on
@@ -346,21 +346,21 @@ tr:hover td{background:var(--surface-soft);}
 
   /* Compact, formal letterhead — smaller and tighter than the on-screen version */
   .report-letterhead{margin-bottom:10px !important;padding:0 0 8px 0 !important;border-bottom:2px solid #AEDBC0 !important;}
-  .report-letterhead img{width:30px !important;}
-  .report-letterhead .rl-title{font-size:14px !important;}
-  .report-letterhead .rl-sub{font-size:10px !important;}
-  .report-letterhead .rl-meta{font-size:9px !important;margin-top:2px !important;}
+  .report-letterhead img{width:38px !important;}
+  .report-letterhead .rl-title{font-size:17px !important;}
+  .report-letterhead .rl-sub{font-size:12px !important;}
+  .report-letterhead .rl-meta{font-size:10.5px !important;margin-top:3px !important;}
 
   /* Dense report table — sized to maximize the chance of fitting one page */
-  .report-table{font-size:9.5px !important;}
-  .report-table th{padding:4px 6px !important;font-size:8.5px !important;}
-  .report-table td{padding:3px 6px !important;}
-  h3{page-break-after:avoid;font-size:12px !important;}
+  .report-table{font-size:12.5px !important;}
+  .report-table th{padding:7px 9px !important;font-size:11px !important;}
+  .report-table td{padding:6px 9px !important;}
+  h3{page-break-after:avoid;font-size:14px !important;}
   .section-divider{background:#000;height:1px;}
   table{page-break-inside:auto;}
   tr{page-break-inside:avoid;page-break-after:auto;}
   th{background:#DCEFE1 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#2F5233 !important;}
-  .badge{padding:1px 6px !important;font-size:8.5px !important;border-radius:10px !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .badge{padding:2px 8px !important;font-size:10.5px !important;border-radius:10px !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   /* Soft pastel palette per payment type — cohesive, easy on the eyes */
   .badge-cash{background:#DCF2E3 !important;color:#3D7A4F !important;}
   .badge-credit{background:#DCE9F7 !important;color:#3A5F8A !important;}
@@ -1124,19 +1124,9 @@ function renderTab1Table(){
   </table></div>`;
 }
 function printReport(containerId, isModal){
-  // Auto-shrink the report to fit one printed page (A4 landscape) using
-  // CSS zoom — measured against the actual rendered content size, so it
-  // adapts to however many rows/columns are in this particular report.
-  const el = document.getElementById(containerId);
-  if(el){
-    el.style.zoom = '1';
-    const contentHeightPx = el.scrollHeight;
-    const contentWidthPx = el.scrollWidth;
-    const pageHeightPx = ((210-16)/25.4)*96; // A4 landscape usable height at 8mm margins
-    const pageWidthPx = ((297-16)/25.4)*96;  // A4 landscape usable width at 8mm margins
-    const scale = Math.min(1, pageHeightPx/contentHeightPx, pageWidthPx/contentWidthPx);
-    el.style.zoom = scale < 1 ? scale : '1';
-  }
+  // (Removed the earlier zoom()-based auto-shrink — it was causing a
+  // blank first page in print preview on some browsers. Font sizes are
+  // now fixed at a comfortably readable size via CSS instead.)
   if(isModal){
     // When printing a report that's shown in a popup, the normal page
     // behind it is still fully present in the DOM — without this, both
