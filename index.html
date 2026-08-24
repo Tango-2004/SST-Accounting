@@ -325,11 +325,14 @@ tr:hover td{background:var(--surface-soft);}
      it — otherwise both the popup report and the underlying page print
      together as two separate reports stacked one after another. */
   body.printing-modal-report .content{display:none !important;}
-  /* .main has min-height:100vh for normal on-screen layout — during modal
-     printing this alone reserves a full blank page BEFORE the popup's
-     content even starts, since min-height still applies even with its
-     child hidden. Collapsing it here is what actually fixes the blank
-     first page in the printout. */
+  /* .main (and its ancestors body / #appShell) all use min-height:100vh
+     for normal on-screen layout — during modal printing this alone
+     reserves a full blank page BEFORE the popup's content even starts,
+     since min-height still applies even with children hidden. All three
+     layers need collapsing — missing any one of them was what kept
+     causing the blank first page in the printout. */
+  body.printing-modal-report{min-height:0 !important;}
+  body.printing-modal-report #appShell{min-height:0 !important;}
   body.printing-modal-report .main{min-height:0 !important;}
   .main{margin-left:0 !important;width:100% !important;}
   body{background:#fff;font-size:12.5px;}
