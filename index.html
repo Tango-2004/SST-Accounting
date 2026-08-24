@@ -1052,7 +1052,19 @@ function renderTab1(){
   const isAdmin = CURRENT.role==='admin';
   let branches = getBranchList();
 
-  const payFilterOptions = `<option value="">ทุกประเภทชำระ</option>${PAY_TYPES.map(p=>`<option value="${p.id}" ${window.__t1pay===p.id?'selected':''}>${p.icon} ${p.label}</option>`).join('')}`;
+  // Read the live DOM values FIRST (before rebuilding the filter bar) —
+  // same fix as the date field: using a separately-tracked variable that
+  // only gets updated *after* this HTML string is built caused the
+  // dropdown to visually revert to the previous selection every re-render
+  // (periodic sync, etc.), one cycle behind the actual filtered data.
+  const existingPayEl = document.getElementById('t1Pay');
+  const currentPay = existingPayEl ? existingPayEl.value : (window.__t1pay||'');
+  window.__t1pay = currentPay;
+  const existingBranchEl = document.getElementById('t1Branch');
+  const currentBranch = existingBranchEl ? existingBranchEl.value : (window.__t1branch||'');
+  window.__t1branch = currentBranch;
+
+  const payFilterOptions = `<option value="">ทุกประเภทชำระ</option>${PAY_TYPES.map(p=>`<option value="${p.id}" ${currentPay===p.id?'selected':''}>${p.icon} ${p.label}</option>`).join('')}`;
   const filterBar = `
     <div class="filter-bar no-print">
       <label>วันที่</label><input type="date" id="t1Date" value="${today}" ${!isAdmin?'max="'+maxAllowedDate()+'"':''} oninput="document.getElementById('t1DateCap').textContent=formatDDMMYYYY(this.value)" onchange="renderShell()"> <span class="helper-text" id="t1DateCap" style="margin:0">${formatDDMMYYYY(today)}</span>
@@ -1061,7 +1073,7 @@ function renderTab1(){
       <label>สาขา</label>
       <select id="t1Branch" onchange="renderShell()">
         <option value="">ทุกสาขา (รวมยอด)</option>
-        ${branches.map(b=>`<option value="${escapeHtml(b)}" ${window.__t1branch===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
+        ${branches.map(b=>`<option value="${escapeHtml(b)}" ${currentBranch===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
       </select>`:''}
       <label>ประเภทชำระ</label>
       <select id="t1Pay" onchange="renderShell()">${payFilterOptions}</select>
@@ -1233,6 +1245,8 @@ function buildCombinedReportHtml(date, branchFilter){
   }
   daySales = [...daySales].sort((a,b)=> (a.branch||'').localeCompare(b.branch||'','th') || a.no-b.no);
   const grand = daySales.reduce((a,b)=>a+Number(b.amount||0),0);
+  const cashTotal = daySales.filter(s=>s.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
+  const isAdmin = CURRENT.role==='admin';
   const rowsHtml = daySales.map((r,i)=>{
     const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
     return `<tr>
@@ -1254,7 +1268,10 @@ function buildCombinedReportHtml(date, branchFilter){
         <th>ประเภทลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th><th>หมายเหตุ</th>
       </tr></thead>
       <tbody>${rowsHtml}</tbody>
-      <tfoot><tr><td colspan="${branchFilter?4:5}">รวมทั้งหมด${branchFilter?'':'ทุกสาขา'}</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr></tfoot>
+      <tfoot>
+        <tr><td colspan="${branchFilter?4:5}">💵 รวมเงินสด</td><td style="text-align:right">฿ ${fmtMoney(cashTotal)}</td><td colspan="2"></td></tr>
+        ${isAdmin?`<tr><td colspan="${branchFilter?4:5}">รวมทั้งหมด${branchFilter?'':'ทุกสาขา'}</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr>`:''}
+      </tfoot>
     </table></div>
   `;
 }
