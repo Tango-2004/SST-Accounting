@@ -1277,8 +1277,7 @@ function buildCombinedReportHtml(date, branchFilter){
       </tr></thead>
       <tbody>${rowsHtml}</tbody>
       <tfoot>
-        <tr><td colspan="${branchFilter?4:5}">💵 รวมเงินสด</td><td style="text-align:right">฿ ${fmtMoney(cashTotal)}</td><td colspan="2"></td></tr>
-        ${isAdmin?`<tr><td colspan="${branchFilter?4:5}">รวมทั้งหมด${branchFilter?'':'ทุกสาขา'}</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr>`:''}
+        <tr style="font-weight:700"><td colspan="${branchFilter?4:5}">💵 รวมเงินสด</td><td style="text-align:right">฿ ${fmtMoney(cashTotal)}</td><td colspan="2"></td></tr>
       </tfoot>
     </table></div>
   `;
