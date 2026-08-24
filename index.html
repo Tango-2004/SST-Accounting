@@ -216,11 +216,11 @@ tr:hover td{background:var(--surface-soft);}
 .empty-state .peak-mark{width:26px;height:20px;opacity:0.3;margin-bottom:10px;}
 
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
-.badge-cash{background:var(--green-soft);color:var(--green-dark);}
-.badge-credit{background:#E7EEF6;color:#2E5C8A;}
-.badge-transfer{background:#F1E9F6;color:#6B3F8A;}
-.badge-deposit{background:var(--warn-soft);color:#95611A;}
-.badge-check{background:var(--red-soft);color:var(--red-dark);}
+.badge-cash{background:#DCF2E3;color:#3D7A4F;}
+.badge-credit{background:#DCE9F7;color:#3A5F8A;}
+.badge-transfer{background:#EAE0F5;color:#6B4A94;}
+.badge-deposit{background:#FCEBD1;color:#9A6A24;}
+.badge-check{background:#FBE0DE;color:#B3453A;}
 .badge-hs{background:var(--green-soft);color:var(--green-dark);}
 .badge-iv{background:var(--red-soft);color:var(--red-dark);}
 .badge-status-pending{background:var(--warn-soft);color:#95611A;}
@@ -229,7 +229,7 @@ tr:hover td{background:var(--surface-soft);}
 .badge-billed{background:var(--green-soft);color:var(--green-dark);}
 .badge-notbilled{background:var(--warn-soft);color:#95611A;}
 .badge-paid{background:var(--green-soft);color:var(--green-dark);}
-.badge-unpaid{background:var(--red-soft);color:var(--red-dark);}
+.badge-unpaid{background:#F7DCE0;color:#A8425A;}
 
 /* HS / IV type styling for clear visual distinction */
 .type-card{border-left-width:5px;border-left-style:solid;}
@@ -696,7 +696,45 @@ async function pushDeleteUserFromSheets(userId, throwOnError){
 }
 async function saveUsers(){ lastUsersWriteAt = Date.now(); await cloudSet('sst_users', DB.users); }
 async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
-async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); pushConfigToSheets('checks', DB.checks); }
+async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); }
+async function pushCheckUpsert(check, throwOnError){
+  // Same principle as employees: push ONLY the one check record that
+  // changed, never the whole local array — this is what actually fixes
+  // checks "disappearing sometimes after saving" (a stale device's full
+  // array push used to silently erase checks only other devices knew about).
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'upsertConfigItem', data:{ key:'checks', item: check } })
+    });
+    let json = null;
+    try{ json = await res.json(); }catch(parseErr){}
+    if(!res.ok || !json || json.ok !== true){
+      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกเช็คสำเร็จ (HTTP '+res.status+')');
+    }
+  }catch(e){
+    console.warn('pushCheckUpsert failed (saved on this device only)', e);
+    if(throwOnError) throw e;
+  }
+}
+async function pushCheckDelete(checkId, throwOnError){
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'deleteConfigItem', data:{ key:'checks', id: checkId } })
+    });
+    let json = null;
+    try{ json = await res.json(); }catch(parseErr){}
+    if(!res.ok || !json || json.ok !== true){
+      throw new Error('Apps Script ไม่ยืนยันว่าลบเช็คสำเร็จ (HTTP '+res.status+')');
+    }
+  }catch(e){
+    console.warn('pushCheckDelete failed (deleted on this device only)', e);
+    if(throwOnError) throw e;
+  }
+}
 async function saveBranches(){ lastBranchesWriteAt = Date.now(); await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
 /* =========================================================
@@ -765,6 +803,7 @@ async function pushCheckImageToDrive(rec, fullImageDataUrl, silent){
     if(json && json.url){
       rec.driveUrl = json.url;
       await saveChecks();
+      pushCheckUpsert(rec);
     }
   }catch(e){ console.error('pushCheckImageToDrive failed', e); if(!silent) toast('บันทึกเช็คในแอปสำเร็จ แต่อัปโหลดรูปเข้า Drive ไม่สำเร็จ', true); }
 }
@@ -1601,33 +1640,48 @@ window.__uploadedCheckImgThumb = null;
 
 function renderTab3(){
   const lists = getCheckLists();
-  let historyRows = lists.history;
-  let historyFilterBar = '';
+  let rows = lists[CHECK_VIEW];
+
+  // Date filter works the same way across all 3 views now — lets you
+  // browse checks by the day they were received, regardless of status.
+  const dateEl = document.getElementById('t3Date');
+  const filterDate = dateEl ? dateEl.value : (window.__t3date||'');
+  window.__t3date = filterDate;
+  if(filterDate) rows = rows.filter(c=>c.dateReceived===filterDate);
+
+  let historyDateFilterBar = '';
   if(CHECK_VIEW==='history'){
-    const dateEl = document.getElementById('t3HistDate');
-    const filterDate = dateEl ? dateEl.value : (window.__t3histdate||'');
-    window.__t3histdate = filterDate;
-    if(filterDate) historyRows = historyRows.filter(c=>c.clearedDate===filterDate);
-    historyFilterBar = `
-      <div class="filter-bar no-print">
-        <label>กรองตามวันที่ผ่านเช็ค</label>
-        <input type="date" id="t3HistDate" value="${filterDate}" onchange="renderShell()">
-        ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3histdate='';renderShell()">ล้างตัวกรอง (ดูทั้งหมด)</button>`:''}
-      </div>`;
+    const clearedDateEl = document.getElementById('t3HistDate');
+    const clearedFilterDate = clearedDateEl ? clearedDateEl.value : (window.__t3histdate||'');
+    window.__t3histdate = clearedFilterDate;
+    if(clearedFilterDate) rows = rows.filter(c=>c.clearedDate===clearedFilterDate);
+    historyDateFilterBar = `
+      <label>กรองตามวันที่ผ่านเช็ค</label>
+      <input type="date" id="t3HistDate" value="${clearedFilterDate}" onchange="renderShell()">
+      ${clearedFilterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3histdate='';renderShell()">ล้าง</button>`:''}`;
   }
+
+  const filterBar = `
+    <div class="filter-bar no-print">
+      <label>กรองตามวันที่รับเช็ค</label>
+      <input type="date" id="t3Date" value="${filterDate}" onchange="renderShell()">
+      ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3date='';renderShell()">ล้าง (ดูทั้งหมด)</button>`:''}
+      ${historyDateFilterBar}
+    </div>`;
+
   return `
     <div class="pill-tabs no-print" style="margin-bottom:16px">
       <button class="pill-tab ${CHECK_VIEW==='pending'?'active':''}" onclick="CHECK_VIEW='pending';renderShell()">รอนำเข้าธนาคาร (${lists.pending.length})</button>
       <button class="pill-tab ${CHECK_VIEW==='deposited'?'active':''}" onclick="CHECK_VIEW='deposited';renderShell()">ผ่านเช็ครับ (${lists.deposited.length})</button>
       <button class="pill-tab ${CHECK_VIEW==='history'?'active':''}" onclick="CHECK_VIEW='history';renderShell()">ประวัติเช็ครับ (${lists.history.length})</button>
     </div>
-    ${historyFilterBar}
+    ${filterBar}
     <div class="card">
       <div class="card-header">
         <div class="card-title">${peakIcon()} ${CHECK_VIEW==='pending'?'รายการเช็ครอนำเข้าธนาคาร':CHECK_VIEW==='deposited'?'เช็คที่นำเข้าธนาคารแล้ว (รอผ่านเช็ค)':'ประวัติเช็ครับ'}</div>
         ${CHECK_VIEW==='pending'?`<button class="btn btn-primary btn-sm no-print" onclick="openCheckForm()">+ บันทึกเช็คใหม่</button>`:''}
       </div>
-      ${renderCheckTable(CHECK_VIEW==='history'?historyRows:lists[CHECK_VIEW], CHECK_VIEW==='history')}
+      ${renderCheckTable(rows, CHECK_VIEW==='history')}
     </div>
   `;
 }
@@ -1680,6 +1734,7 @@ async function deleteCheck(id){
   DB.checks.splice(idx,1);
   try{ await saveChecks(); }
   catch(e){ DB.checks.splice(idx,0,removed); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCheckDelete(id);
   try{ localStorage.removeItem('sst_checkimg_'+id); }catch(e){}
   if(window.storage){ try{ await window.storage.delete('sst_checkimg_'+id, true); }catch(e){} }
   renderShell();
@@ -1716,12 +1771,12 @@ async function viewCheckImage(id){
 async function markDeposited(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
   c.status='deposited'; c.depositedDate = todayStr();
-  await saveChecks(); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
+  await saveChecks(); pushCheckUpsert(c); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
 }
 async function markCleared(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
   c.status='cleared'; c.clearedDate = todayStr();
-  await saveChecks(); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
+  await saveChecks(); pushCheckUpsert(c); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
 }
 function returnCheck(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
@@ -1745,6 +1800,7 @@ async function confirmReturnCheck(id){
   c.depositedDate=null;
   if(newDate) c.checkDate = newDate;
   await saveChecks();
+  pushCheckUpsert(c);
   closeModal();
   renderShell();
   toast('คืนเช็คแล้ว — เช็คกลับไปอยู่ในรายการรอนำเข้าธนาคาร');
@@ -1874,6 +1930,7 @@ async function submitCheck(){
       toast('บันทึกการแก้ไขไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
       return;
     }
+    pushCheckUpsert(updated);
     if(fullImg){
       lsSet('sst_checkimg_'+editId, fullImg);
       if(window.storage){ try{ await window.storage.set('sst_checkimg_'+editId, JSON.stringify(fullImg), true); }catch(e){} }
@@ -1896,6 +1953,7 @@ async function submitCheck(){
     toast('บันทึกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
     return;
   }
+  pushCheckUpsert(rec);
   if(fullImg){
     lsSet('sst_checkimg_'+rec.id, fullImg);
     if(window.storage){
