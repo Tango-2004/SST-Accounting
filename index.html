@@ -1145,6 +1145,7 @@ function renderTab1Table(){
     return `<div class="empty-state">${peakIcon(26)}<div>ยังไม่มีรายการบันทึกในวันที่เลือก</div></div>`;
   }
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const cashOnlyTotal = rows.filter(r=>r.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
   const isCredit = TAB1_CUSTVIEW==='credit';
   return `<div class="table-wrap"><table class="report-table">
     <thead><tr>
@@ -1171,7 +1172,10 @@ function renderTab1Table(){
         </tr>`;
       }).join('')}
     </tbody>
-    <tfoot><tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr></tfoot>
+    <tfoot>
+      <tr><td colspan="3">💵 รวมเงินสดเท่านั้น</td><td style="text-align:right">${fmtMoney(cashOnlyTotal)}</td><td colspan="${isCredit?6:5}"></td></tr>
+      <tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr>
+    </tfoot>
   </table></div>`;
 }
 function printReport(containerId, isModal){
