@@ -1659,6 +1659,7 @@ function printTab2Preview(){
    TAB 3 — CHECKS (เช็ครับลูกหนี้)
    ========================================================= */
 let CHECK_VIEW = 'pending'; // pending | deposited | history
+let CHECK_SORT_ASC = true; // sort by checkDate — true: soonest due first
 window.__uploadedCheckImgFull = null;
 window.__uploadedCheckImgThumb = null;
 
@@ -1673,6 +1674,10 @@ function renderTab3(){
   const filterDate = dateEl ? dateEl.value : (window.__t3date||'');
   window.__t3date = filterDate;
   if(filterDate) rows = rows.filter(c=>c.checkDate===filterDate);
+  rows = [...rows].sort((a,b)=>{
+    const cmp = (a.checkDate||'').localeCompare(b.checkDate||'');
+    return CHECK_SORT_ASC ? cmp : -cmp;
+  });
 
   let historyDateFilterBar = '';
   if(CHECK_VIEW==='history'){
@@ -1691,6 +1696,8 @@ function renderTab3(){
       <label>กรองตามวันที่ในเช็ค</label>
       <input type="date" id="t3Date" value="${filterDate}" onchange="renderShell()">
       ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3date='';renderShell()">ล้าง (ดูทั้งหมด)</button>`:''}
+      <label>เรียงตามวันที่ในเช็ค</label>
+      <button class="btn btn-outline btn-sm" onclick="CHECK_SORT_ASC=!CHECK_SORT_ASC;renderShell()">${CHECK_SORT_ASC?'⬆ ใกล้ครบกำหนดก่อน':'⬇ ไกลครบกำหนดก่อน'}</button>
       ${historyDateFilterBar}
     </div>`;
 
