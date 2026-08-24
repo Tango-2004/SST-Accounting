@@ -1667,13 +1667,19 @@ function renderTab3(){
   const lists = getCheckLists();
   let rows = lists[CHECK_VIEW];
 
-  // Date filter uses the date WRITTEN ON THE CHECK (checkDate / วันที่ในเช็ค)
-  // as the source — matches the calendar view and the due-date business
-  // meaning of the check, rather than whichever day staff happened to log it.
+  // Two independent date filters, stack together (AND) if both are set:
+  // - "วันที่รับเช็ค" (dateReceived) — the day staff logged the check
+  // - "วันที่ในเช็ค" (checkDate) — the due date written on the check itself
   const dateEl = document.getElementById('t3Date');
   const filterDate = dateEl ? dateEl.value : (window.__t3date||'');
   window.__t3date = filterDate;
-  if(filterDate) rows = rows.filter(c=>c.checkDate===filterDate);
+  if(filterDate) rows = rows.filter(c=>c.dateReceived===filterDate);
+
+  const checkDateEl = document.getElementById('t3CheckDate');
+  const checkDateFilter = checkDateEl ? checkDateEl.value : (window.__t3checkdate||'');
+  window.__t3checkdate = checkDateFilter;
+  if(checkDateFilter) rows = rows.filter(c=>c.checkDate===checkDateFilter);
+
   rows = [...rows].sort((a,b)=>{
     const cmp = (a.checkDate||'').localeCompare(b.checkDate||'');
     return CHECK_SORT_ASC ? cmp : -cmp;
@@ -1693,9 +1699,12 @@ function renderTab3(){
 
   const filterBar = `
     <div class="filter-bar no-print">
-      <label>กรองตามวันที่ในเช็ค</label>
+      <label>กรองตามวันที่รับเช็ค</label>
       <input type="date" id="t3Date" value="${filterDate}" onchange="renderShell()">
-      ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3date='';renderShell()">ล้าง (ดูทั้งหมด)</button>`:''}
+      ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3date='';renderShell()">ล้าง</button>`:''}
+      <label>กรองตามวันที่ในเช็ค</label>
+      <input type="date" id="t3CheckDate" value="${checkDateFilter}" onchange="renderShell()">
+      ${checkDateFilter?`<button class="btn btn-ghost btn-sm" onclick="window.__t3checkdate='';renderShell()">ล้าง</button>`:''}
       <label>เรียงตามวันที่ในเช็ค</label>
       <button class="btn btn-outline btn-sm" onclick="CHECK_SORT_ASC=!CHECK_SORT_ASC;renderShell()">${CHECK_SORT_ASC?'⬆ ใกล้ครบกำหนดก่อน':'⬇ ไกลครบกำหนดก่อน'}</button>
       ${historyDateFilterBar}
