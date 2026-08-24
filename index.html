@@ -1149,7 +1149,7 @@ function renderTab1Table(){
   const isCredit = TAB1_CUSTVIEW==='credit';
   return `<div class="table-wrap"><table class="report-table">
     <thead><tr>
-      <th>ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th>
+      <th>ลำดับ</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงินสด</th>
       <th>ประเภทชำระ</th><th>ธนาคาร</th>${isCredit?'<th>เครดิต (วัน)</th>':''}<th>หมายเหตุ</th><th>สาขา / ผู้บันทึก</th><th class="no-print"></th>
     </tr></thead>
     <tbody>
@@ -1173,8 +1173,7 @@ function renderTab1Table(){
       }).join('')}
     </tbody>
     <tfoot>
-      <tr><td colspan="3">💵 รวมเงินสดเท่านั้น</td><td style="text-align:right">${fmtMoney(cashOnlyTotal)}</td><td colspan="${isCredit?6:5}"></td></tr>
-      <tr style="font-weight:700"><td colspan="3">รวมทั้งหมด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr>
+      <tr style="font-weight:700"><td colspan="3">💵 รวมเงินสดเท่านั้น</td><td style="text-align:right">${fmtMoney(cashOnlyTotal)}</td><td colspan="${isCredit?6:5}"></td></tr>
     </tfoot>
   </table></div>`;
 }
