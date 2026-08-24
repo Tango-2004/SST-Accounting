@@ -352,9 +352,9 @@ tr:hover td{background:var(--surface-soft);}
   .report-letterhead .rl-meta{font-size:8.5px !important;margin-top:2px !important;}
 
   /* Dense report table — sized to maximize the chance of fitting one page */
-  .report-table{font-size:10.5px !important;}
-  .report-table th{padding:5px 7px !important;font-size:9.5px !important;}
-  .report-table td{padding:4px 7px !important;}
+  .report-table{font-size:9.5px !important;}
+  .report-table th{padding:3px 6px !important;font-size:8.5px !important;line-height:1.15 !important;}
+  .report-table td{padding:2.5px 6px !important;line-height:1.15 !important;}
   h3{page-break-after:avoid;font-size:14px !important;}
   .section-divider{background:#000;height:1px;}
   table{page-break-inside:auto;}
@@ -374,7 +374,7 @@ tr:hover td{background:var(--surface-soft);}
   /* Landscape + slim margins: the combined report has many columns
      (branch, customer type, name, bill no, amount, payment, note), so
      landscape gives it the best shot at fitting on one sheet. */
-  @page{ size: A4 landscape; margin:8mm; }
+  @page{ size: A4 landscape; margin:6mm; }
 }
 .print-only{display:none;}
 @media print{.print-only{display:block;}}
@@ -1666,12 +1666,13 @@ function renderTab3(){
   const lists = getCheckLists();
   let rows = lists[CHECK_VIEW];
 
-  // Date filter works the same way across all 3 views now — lets you
-  // browse checks by the day they were received, regardless of status.
+  // Date filter uses the date WRITTEN ON THE CHECK (checkDate / วันที่ในเช็ค)
+  // as the source — matches the calendar view and the due-date business
+  // meaning of the check, rather than whichever day staff happened to log it.
   const dateEl = document.getElementById('t3Date');
   const filterDate = dateEl ? dateEl.value : (window.__t3date||'');
   window.__t3date = filterDate;
-  if(filterDate) rows = rows.filter(c=>c.dateReceived===filterDate);
+  if(filterDate) rows = rows.filter(c=>c.checkDate===filterDate);
 
   let historyDateFilterBar = '';
   if(CHECK_VIEW==='history'){
@@ -1687,7 +1688,7 @@ function renderTab3(){
 
   const filterBar = `
     <div class="filter-bar no-print">
-      <label>กรองตามวันที่รับเช็ค</label>
+      <label>กรองตามวันที่ในเช็ค</label>
       <input type="date" id="t3Date" value="${filterDate}" onchange="renderShell()">
       ${filterDate?`<button class="btn btn-ghost btn-sm" onclick="window.__t3date='';renderShell()">ล้าง (ดูทั้งหมด)</button>`:''}
       ${historyDateFilterBar}
