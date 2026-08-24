@@ -707,15 +707,15 @@ async function saveUsers(){ lastUsersWriteAt = Date.now(); await cloudSet('sst_u
 async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
 async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); }
 async function pushCheckUpsert(check, throwOnError){
-  // Same principle as employees: push ONLY the one check record that
-  // changed, never the whole local array — this is what actually fixes
-  // checks "disappearing sometimes after saving" (a stale device's full
-  // array push used to silently erase checks only other devices knew about).
+  // Checks now live as real rows in their own "Checks" sheet tab — each
+  // check's thumbnail sits in its OWN cell instead of being crammed
+  // together with every other check into one shared cell, so the image
+  // can stay included without ever risking the 50,000-character cell limit.
   if(!APPS_SCRIPT_URL) return;
   try{
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'upsertConfigItem', data:{ key:'checks', item: check } })
+      body: JSON.stringify({ action:'upsertCheck', data:{ check } })
     });
     let json = null;
     try{ json = await res.json(); }catch(parseErr){}
@@ -732,7 +732,7 @@ async function pushCheckDelete(checkId, throwOnError){
   try{
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
-      body: JSON.stringify({ action:'deleteConfigItem', data:{ key:'checks', id: checkId } })
+      body: JSON.stringify({ action:'deleteCheck', data:{ id: checkId } })
     });
     let json = null;
     try{ json = await res.json(); }catch(parseErr){}
