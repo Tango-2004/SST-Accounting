@@ -1153,8 +1153,13 @@ function renderTab1Table(){
   if(!rows.length){
     return `<div class="empty-state">${peakIcon(26)}<div>ยังไม่มีรายการบันทึกในวันที่เลือก</div></div>`;
   }
-  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
-  const cashOnlyTotal = rows.filter(r=>r.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
+  // Exclude the synthetic "รวมบิลสีชมพู" combined record from the totals —
+  // its amount is already counted via the individual pink-bill entries it
+  // was built from, so including it too would double-count. The combined
+  // row itself still displays normally in the table for audit purposes.
+  const totalRows = rows.filter(r=>!r.combinedFrom);
+  const total = totalRows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const cashOnlyTotal = totalRows.filter(r=>r.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
   const isCredit = TAB1_CUSTVIEW==='credit';
   return `<div class="table-wrap"><table class="report-table">
     <thead><tr>
