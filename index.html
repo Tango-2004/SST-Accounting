@@ -1238,12 +1238,11 @@ function refreshCombinedReport(){
   if(content) content.innerHTML = buildCombinedReportHtml(date, branch);
 }
 function buildCombinedReportHtml(date, branchFilter){
-  // Pink bills that have already been combined into an IV record should not
-  // appear as separate lines in the report — only the resulting combined
-  // record should show, so totals aren't double-counted and the report
-  // stays clean. (They still show individually in the live Tab1 table with
-  // a "รวมเข้า IV แล้ว" badge, for audit purposes.)
-  let daySales = DB.sales.filter(s=>s.date===date && !s.combinedInto);
+  // Show/sum each individual pink-bill entry normally in this report — per
+  // request, only the synthetic "รวมบิลสีชมพู" combined record itself
+  // (combinedFrom set) is excluded, so its amount isn't double-counted
+  // on top of the individual entries it was built from.
+  let daySales = DB.sales.filter(s=>s.date===date && !s.combinedFrom);
   if(branchFilter) daySales = daySales.filter(s=>s.branch===branchFilter);
   const letterhead = `
     <div class="report-letterhead" style="margin-bottom:14px">
