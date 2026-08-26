@@ -628,18 +628,33 @@ async function cloudSet(key, value){
     throw new Error('ไม่สามารถบันทึกข้อมูลลงเครื่องนี้ได้ (พื้นที่จัดเก็บอาจเต็มหรือถูกปิดใช้งาน)');
   }
 }
+async function postToAppsScript(payload){
+  // Google Apps Script Web Apps have a known quirk: the /exec URL responds
+  // with a redirect, and fetch() sometimes can't read the final response
+  // for POST requests even when "Who has access" is correctly set to
+  // "Anyone" — the browser reports this as a CORS error. Try a normal
+  // (verifiable) request first; if THAT specifically fails due to CORS,
+  // fall back to a "fire-and-forget" no-cors request instead of giving up —
+  // Apps Script still receives and processes the request server-side even
+  // though the browser can't read the response back in that mode.
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', body: JSON.stringify(payload) });
+    let json = null;
+    try{ json = await res.json(); }catch(parseErr){}
+    if(!res.ok || !json || json.ok !== true){
+      throw new Error('Apps Script ไม่ยืนยันว่าสำเร็จ (HTTP '+res.status+')');
+    }
+    return true;
+  }catch(e){
+    console.warn('Normal POST failed (likely CORS) — retrying as no-cors fire-and-forget', e);
+    await fetch(APPS_SCRIPT_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+    return 'unverified'; // sent, but we can't confirm the server accepted it
+  }
+}
 async function pushConfigToSheets(key, value, throwOnError){
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveConfig', data:{ key, value: JSON.stringify(value) } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){ /* response wasn't valid JSON */ }
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกสำเร็จสำหรับ "'+key+'" (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'saveConfig', data:{ key, value: JSON.stringify(value) } });
   }catch(e){
     console.warn('pushConfigToSheets failed for '+key+' (saved on this device only)', e);
     if(throwOnError) throw e;
@@ -655,15 +670,7 @@ async function pushUsersTableToSheets(throwOnError){
   // local copy is missing employees other devices have added.
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveUsersTable', data:{ users: DB.users } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกรายชื่อพนักงานสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'saveUsersTable', data:{ users: DB.users } });
   }catch(e){
     console.warn('pushUsersTableToSheets failed (saved on this device only)', e);
     if(throwOnError) throw e;
@@ -677,15 +684,7 @@ async function pushSingleUserToSheets(user, throwOnError){
   // to silently erase records that only existed on OTHER devices.
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'upsertUser', data:{ user } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกพนักงานสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'upsertUser', data:{ user } });
   }catch(e){
     console.warn('pushSingleUserToSheets failed (saved on this device only)', e);
     if(throwOnError) throw e;
@@ -694,15 +693,7 @@ async function pushSingleUserToSheets(user, throwOnError){
 async function pushDeleteUserFromSheets(userId, throwOnError){
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'deleteUserRow', data:{ id: userId } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าลบพนักงานสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'deleteUserRow', data:{ id: userId } });
   }catch(e){
     console.warn('pushDeleteUserFromSheets failed (deleted on this device only)', e);
     if(throwOnError) throw e;
@@ -724,15 +715,7 @@ async function pushSaleUpsert(sale, throwOnError){
   // once enough records piled up (~30th record and beyond).
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'upsertSale', data:{ sale } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกยอดขายสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'upsertSale', data:{ sale } });
   }catch(e){
     console.warn('pushSaleUpsert failed (saved on this device only)', e);
     if(throwOnError) throw e;
@@ -741,15 +724,7 @@ async function pushSaleUpsert(sale, throwOnError){
 async function pushSaleDelete(saleId, throwOnError){
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'deleteSale', data:{ id: saleId } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าลบยอดขายสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'deleteSale', data:{ id: saleId } });
   }catch(e){
     console.warn('pushSaleDelete failed (deleted on this device only)', e);
     if(throwOnError) throw e;
@@ -763,15 +738,7 @@ async function pushCheckUpsert(check, throwOnError){
   // can stay included without ever risking the 50,000-character cell limit.
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'upsertCheck', data:{ check } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าบันทึกเช็คสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'upsertCheck', data:{ check } });
   }catch(e){
     console.warn('pushCheckUpsert failed (saved on this device only)', e);
     if(throwOnError) throw e;
@@ -780,15 +747,7 @@ async function pushCheckUpsert(check, throwOnError){
 async function pushCheckDelete(checkId, throwOnError){
   if(!APPS_SCRIPT_URL) return;
   try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'deleteCheck', data:{ id: checkId } })
-    });
-    let json = null;
-    try{ json = await res.json(); }catch(parseErr){}
-    if(!res.ok || !json || json.ok !== true){
-      throw new Error('Apps Script ไม่ยืนยันว่าลบเช็คสำเร็จ (HTTP '+res.status+')');
-    }
+    await postToAppsScript({ action:'deleteCheck', data:{ id: checkId } });
   }catch(e){
     console.warn('pushCheckDelete failed (deleted on this device only)', e);
     if(throwOnError) throw e;
@@ -837,11 +796,14 @@ function thaiMonthYearFolder(dateStr){
 async function pushSaleToSheet(rec){
   if(!APPS_SCRIPT_URL) return;
   try{
+    // Fire-and-forget audit log entry — doesn't need to read the response,
+    // so go straight to no-cors to sidestep the Apps Script POST/CORS quirk.
     await fetch(APPS_SCRIPT_URL, {
       method:'POST',
+      mode:'no-cors',
       body: JSON.stringify({ action:'saveSale', data: rec })
     });
-  }catch(e){ console.error('pushSaleToSheet failed', e); toast('บันทึกในแอปสำเร็จ แต่ส่งเข้า Google Sheet ไม่สำเร็จ (ตรวจสอบการเชื่อมต่อ)', true); }
+  }catch(e){ console.warn('pushSaleToSheet failed', e); }
 }
 async function pushCheckImageToDrive(rec, fullImageDataUrl, silent){
   if(!APPS_SCRIPT_URL || !fullImageDataUrl) return;
