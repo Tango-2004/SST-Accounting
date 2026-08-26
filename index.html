@@ -2297,6 +2297,13 @@ function renderSettings(){
       ` : ''}
     </div>
     ${APPS_SCRIPT_URL ? renderDriveUploadBlock() : ''}
+    ${APPS_SCRIPT_URL ? `
+    <div class="card settings-block">
+      <div class="card-header"><div class="card-title">${peakIcon()} เช็คสถานะซิงค์</div></div>
+      <p class="helper-text" style="margin-top:0">กดปุ่มนี้เพื่อเทียบจำนวนรายการในเครื่องนี้กับข้อมูลกลางบน Google Sheets ตรงๆ — ไม่ต้องเปิด Console หรือพิมพ์คำสั่งใดๆ เลย ถ้าตัวเลขไม่ตรงกัน แปลว่าเครื่องนี้ยังซิงค์ไม่ครบ</p>
+      <button class="btn btn-primary btn-sm" id="syncCheckBtn" onclick="runSyncStatusCheck()">🔍 เช็คสถานะซิงค์ตอนนี้</button>
+      <div id="syncCheckResult" style="margin-top:14px"></div>
+    </div>` : ''}
     ${CURRENT.role==='admin' ? `
     <div class="card settings-block">
       <div class="card-header"><div class="card-title">${peakIcon()} สำรองข้อมูล</div></div>
@@ -2371,6 +2378,44 @@ async function bulkUploadChecksToDrive(){
   await saveChecks();
   renderShell();
   toast(`อัปโหลดขึ้น Google Drive สำเร็จ ${success} ใบ${fail?` · ล้มเหลว ${fail} ใบ (ลองใหม่ได้)`:''}`, fail>0 && success===0);
+}
+async function runSyncStatusCheck(){
+  const btn = document.getElementById('syncCheckBtn');
+  const resultBox = document.getElementById('syncCheckResult');
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังเช็ค...'; }
+  resultBox.innerHTML = `<p class="helper-text">กำลังดึงข้อมูลจาก Google Sheets มาเทียบ...</p>`;
+  try{
+    const controller = new AbortController();
+    const timeoutId = setTimeout(()=>controller.abort(), 25000);
+    const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig', {signal: controller.signal});
+    clearTimeout(timeoutId);
+    const json = await res.json();
+    if(!json || json.ok !== true){
+      resultBox.innerHTML = `<div class="empty-state">${peakIcon(22)}<div>เชื่อมต่อ Google Sheets ไม่สำเร็จ — ตรวจสอบ URL ในการ์ดด้านบน หรือลองใหม่อีกครั้ง</div></div>`;
+      return;
+    }
+    const remoteUsers = json.users ? JSON.parse(json.users) : [];
+    const remoteChecks = json.checks ? JSON.parse(json.checks) : [];
+    const remoteSales = json.sales ? JSON.parse(json.sales) : [];
+    const rows = [
+      {label:'👤 พนักงาน', local: DB.users.length, remote: remoteUsers.length},
+      {label:'🧾 เช็ครับ', local: DB.checks.length, remote: remoteChecks.length},
+      {label:'💰 ยอดขาย', local: DB.sales.length, remote: remoteSales.length},
+    ];
+    const allMatch = rows.every(r=>r.local===r.remote);
+    resultBox.innerHTML = `
+      <div class="table-wrap"><table class="report-table">
+        <thead><tr><th>ประเภทข้อมูล</th><th style="text-align:right">เครื่องนี้</th><th style="text-align:right">ส่วนกลาง (Sheets)</th><th>สถานะ</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${r.label}</td><td style="text-align:right">${r.local}</td><td style="text-align:right">${r.remote}</td><td>${r.local===r.remote?'<span class="badge badge-cash">✓ ตรงกัน</span>':`<span class="badge badge-unpaid">⚠️ ไม่ตรงกัน (ต่าง ${Math.abs(r.local-r.remote)})</span>`}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="helper-text" style="margin-top:10px">${allMatch ? '✅ ตัวเลขตรงกันหมด — เครื่องนี้ซิงค์กับส่วนกลางเรียบร้อยดี' : '⚠️ มีบางประเภทที่ตัวเลขไม่ตรงกัน — ลองกดปุ่ม 🔄 มุมขวาบน หรือรอสัก 15-25 วินาทีแล้วกดเช็คซ้ำอีกครั้ง ถ้ายังไม่ตรงหลังจากนั้น อาจมีปัญหาการเชื่อมต่อที่เครื่องนี้'}</p>
+      <p class="helper-text">URL ที่เชื่อมต่ออยู่: <code style="font-size:11px">${escapeHtml(APPS_SCRIPT_URL)}</code></p>
+    `;
+  }catch(e){
+    resultBox.innerHTML = `<div class="empty-state">${peakIcon(22)}<div>เช็คไม่สำเร็จ: ${escapeHtml(e&&e.message?e.message:'เกิดข้อผิดพลาด')} — ลองใหม่อีกครั้ง</div></div>`;
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '🔍 เช็คสถานะซิงค์ตอนนี้'; }
+  }
 }
 async function pushLocalUsersAndBranchesToSheets(){
   if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
