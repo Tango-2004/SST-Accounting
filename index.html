@@ -704,7 +704,7 @@ async function pushDeleteUserFromSheets(userId, throwOnError){
   }
 }
 async function saveUsers(){ lastUsersWriteAt = Date.now(); await cloudSet('sst_users', DB.users); }
-async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); }
+async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
 async function pushSaleUpsert(sale, throwOnError){
   // Sales now live as real rows in their own "Sales" sheet tab — same fix
   // as employees and checks: pushing only the ONE record that changed
@@ -1364,7 +1364,6 @@ function deleteSale(id){
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   DB.sales.splice(idx,1);
   saveSales();
-  pushSaleDelete(id);
   renderShell();
   toast('ลบรายการแล้ว');
 }
@@ -1516,7 +1515,6 @@ async function submitSale(){
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
     pushSaleToSheet(updated);
-    pushSaleUpsert(updated);
     return;
   }
 
@@ -1533,7 +1531,6 @@ async function submitSale(){
   renderShell();
   toast('บันทึกรายการเรียบร้อย');
   pushSaleToSheet(rec);
-  pushSaleUpsert(rec);
   askSplitPayment(rec);
 }
 function openCancelSaleForm(id){
@@ -1576,7 +1573,6 @@ async function confirmCancelSale(id){
     return;
   }
   pushSaleToSheet(rec);
-  pushSaleUpsert(rec);
   closeModal();
   renderShell();
   toast('ยกเลิกรายการแล้ว — ไม่ถูกนำมารวมยอดอีกต่อไป');
@@ -1592,7 +1588,6 @@ async function uncancelSale(id){
   rec.cancelReason = '';
   await saveSales();
   pushSaleToSheet(rec);
-  pushSaleUpsert(rec);
   renderShell();
   toast('คืนสถานะรายการแล้ว');
 }
@@ -1702,7 +1697,6 @@ async function confirmCombinePinkBills(){
   renderShell();
   toast(`รวมบิลสีชมพู ${sourceRecs.length} ใบเป็น ${ivNo} เรียบร้อย (ยอดรวม ฿${fmtMoney(total)})`);
   pushSaleToSheet(combinedRec);
-  pushSaleUpsert(combinedRec);
 }
 
 /* =========================================================
