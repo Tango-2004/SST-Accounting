@@ -809,7 +809,7 @@ async function saveBranches(){ lastBranchesWriteAt = Date.now(); await cloudSet(
 // Baked-in default so every device that opens this exact file auto-connects
 // on first load without needing to paste the URL manually. If a device later
 // saves a different URL via Settings, that per-device override always wins.
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdrGhFJfdPhPmUwkzQFI2Pg-uMRR215a8VHBiG75H-7B51yjqn2JZsFZwXpS9oJptxgQ/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyXPlEd6xLfbWO5ID5ActfU_ByaEuGy0tjSVhfvtedu9mSvR6jT7gEC65wKehjqoHQ-OA/exec';
 let APPS_SCRIPT_URL = '';
 async function loadAppsScriptUrl(){
   const saved = await safeGet('sst_apps_script_url');
