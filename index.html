@@ -594,7 +594,12 @@ async function loadDB(){
             DB.branches = remoteBranches; lsSet('sst_branches', DB.branches);
           }
         }
-        if(json.sales && (Date.now()-lastSalesWriteAt > WRITE_COOLDOWN_MS)){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
+        if(json.sales){
+          const withinCooldown = (Date.now()-lastSalesWriteAt <= WRITE_COOLDOWN_MS);
+          const remoteCount = (function(){ try{ return JSON.parse(json.sales).length; }catch(e){ return 'parse-error'; } })();
+          console.log('[SYNC] sales pull — local:', DB.sales.length, 'remote:', remoteCount, withinCooldown ? '(SKIPPED — within cooldown)' : '(APPLYING)');
+          if(!withinCooldown){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
+        }
         if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
       }
     }catch(e){ console.warn('central config fetch failed or timed out, using local copy for this device', e); }
@@ -704,7 +709,12 @@ async function pushDeleteUserFromSheets(userId, throwOnError){
   }
 }
 async function saveUsers(){ lastUsersWriteAt = Date.now(); await cloudSet('sst_users', DB.users); }
-async function saveSales(){ lastSalesWriteAt = Date.now(); await cloudSet('sst_sales', DB.sales); pushConfigToSheets('sales', DB.sales); }
+async function saveSales(){
+  lastSalesWriteAt = Date.now();
+  console.log('[SAVE] saveSales called — DB.sales.length:', DB.sales.length, 'at', new Date().toLocaleTimeString());
+  await cloudSet('sst_sales', DB.sales);
+  pushConfigToSheets('sales', DB.sales);
+}
 async function pushSaleUpsert(sale, throwOnError){
   // Sales now live as real rows in their own "Sales" sheet tab — same fix
   // as employees and checks: pushing only the ONE record that changed
@@ -1173,6 +1183,7 @@ function getTab1FilterDate(){
 function renderTab1Table(){
   const date = getTab1FilterDate();
   const isAdmin = CURRENT.role==='admin';
+  console.log('[RENDER] Tab1Table — DB.sales.length:', DB.sales.length, 'filterDate:', date, 'view:', TAB1_CUSTVIEW);
   let rows = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW);
   if(isAdmin){
     const branchEl = document.getElementById('t1Branch');
