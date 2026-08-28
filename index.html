@@ -2459,6 +2459,17 @@ window.addEventListener('unhandledrejection', function(e){
   HAS_CLOUD_SYNC = typeof window.storage !== 'undefined' && window.storage !== null;
   await loadAppsScriptUrl();
   await loadDB();
+  // อุปกรณ์ใหม่ที่ไม่มีข้อมูลในเครื่องเลย มักโดน Apps Script "ตื่นช้า" (cold start)
+  // ในการเรียกครั้งแรก ทำให้ดึงข้อมูลไม่ทัน — ลองดึงซ้ำอัตโนมัติอีกครั้งหลัง 4 วิ
+  // และอีกครั้งหลัง 10 วิ โดยไม่ต้องให้คนกดปุ่ม 🔄 เอง
+  setTimeout(async function(){
+    await loadDB();
+    if(CURRENT){ renderShell(); }
+  }, 4000);
+  setTimeout(async function(){
+    await loadDB();
+    if(CURRENT){ renderShell(); }
+  }, 10000);
   if(!HAS_CLOUD_SYNC){
     const hint = document.createElement('div');
     hint.className = 'login-error';
