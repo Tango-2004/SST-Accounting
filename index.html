@@ -41,13 +41,11 @@ input,select,textarea{font-family:inherit;}
 a{color:inherit;}
 ::selection{background:var(--green-soft);}
 
-/* ===== Peak motif ===== */
 .peak-mark{
   display:inline-block;width:16px;height:12px;position:relative;flex-shrink:0;
 }
 .peak-mark svg{width:100%;height:100%;display:block;}
 
-/* ===== Login screen ===== */
 #loginScreen{
   min-height:100vh;
   display:flex;align-items:center;justify-content:center;
@@ -103,7 +101,6 @@ a{color:inherit;}
 .login-error{background:var(--red-soft);color:var(--red-dark);font-size:13px;padding:9px 12px;border-radius:8px;margin-bottom:14px;text-align:left;display:none;}
 .login-hint{margin-top:20px;font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
 
-/* ===== App shell ===== */
 #appShell{display:none;min-height:100vh;}
 .sidebar{
   width:236px;flex-shrink:0;background:var(--ink);
@@ -151,7 +148,6 @@ a{color:inherit;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
 .content{padding:26px 28px 60px;flex:1;}
 
-/* mobile nav */
 .mobile-topbar{display:none;}
 .hamburger{width:22px;height:16px;position:relative;background:none;border:none;padding:0;}
 .hamburger span{position:absolute;left:0;width:100%;height:2px;background:currentColor;border-radius:2px;}
@@ -160,7 +156,6 @@ a{color:inherit;}
 .hamburger span:nth-child(3){top:14px;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:29;}
 
-/* ===== Cards / tables ===== */
 .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:22px;margin-bottom:20px;}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
 .card-title{font-family:'Kanit';font-weight:600;font-size:16.5px;display:flex;align-items:center;gap:8px;}
@@ -193,9 +188,6 @@ tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--surface-soft);}
 .table-wrap{overflow-x:auto;border-radius:8px;}
 
-/* Polished bordered "ledger" style for printed/formal reports (combined
-   report, Tab2 cash summary) — clean grid lines, distinct from the app's
-   normal minimal tables which use bottom-border-only rows. */
 .report-table{border-collapse:collapse;width:100%;font-size:13px;border:1.5px solid var(--ink);border-radius:8px;overflow:hidden;}
 .report-table th{background:var(--ink);color:#fff;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:0.3px;padding:9px 12px;border:1px solid var(--ink);text-align:left;}
 .report-table td{padding:8px 12px;border:1px solid var(--border);}
@@ -231,7 +223,6 @@ tr:hover td{background:var(--surface-soft);}
 .badge-paid{background:var(--green-soft);color:var(--green-dark);}
 .badge-unpaid{background:#F7DCE0;color:#A8425A;}
 
-/* HS / IV type styling for clear visual distinction */
 .type-card{border-left-width:5px;border-left-style:solid;}
 .type-card.type-hs{border-left-color:var(--green);}
 .type-card.type-iv{border-left-color:var(--red);}
@@ -321,25 +312,13 @@ tr:hover td{background:var(--surface-soft);}
 }
 @media print{
   .sidebar,.topbar,.mobile-topbar,.no-print{display:none !important;}
-  /* When printing a report shown in a popup, hide the normal page behind
-     it — otherwise both the popup report and the underlying page print
-     together as two separate reports stacked one after another. */
   body.printing-modal-report .content{display:none !important;}
-  /* .main (and its ancestors body / #appShell) all use min-height:100vh
-     for normal on-screen layout — during modal printing this alone
-     reserves a full blank page BEFORE the popup's content even starts,
-     since min-height still applies even with children hidden. All three
-     layers need collapsing — missing any one of them was what kept
-     causing the blank first page in the printout. */
   body.printing-modal-report{min-height:0 !important;}
   body.printing-modal-report #appShell{min-height:0 !important;}
   body.printing-modal-report .main{min-height:0 !important;}
   .main{margin-left:0 !important;width:100% !important;}
   body{background:#fff;font-size:12.5px;}
 
-  /* Modal-based reports (combined report, Tab2 preview) must print their
-     FULL content, not just the scrollable viewport that's visible on
-     screen — override every size/position constraint that would clip it. */
   .modal-backdrop{
     display:block !important;position:static !important;background:none !important;
     padding:0 !important;inset:auto !important;
@@ -353,14 +332,12 @@ tr:hover td{background:var(--surface-soft);}
   .modal-body{padding:0 !important;}
   .modal-footer{display:none !important;}
 
-  /* Compact, formal letterhead — smaller and tighter than the on-screen version */
   .report-letterhead{margin-bottom:6px !important;padding:0 0 5px 0 !important;border-bottom:1.5px solid #AEDBC0 !important;}
   .report-letterhead img{width:28px !important;}
   .report-letterhead .rl-title{font-size:14px !important;}
   .report-letterhead .rl-sub{font-size:10px !important;}
   .report-letterhead .rl-meta{font-size:8.5px !important;margin-top:2px !important;}
 
-  /* Dense report table — sized to maximize the chance of fitting one page */
   .report-table{font-size:9.5px !important;}
   .report-table th{padding:3px 6px !important;font-size:8.5px !important;line-height:1.15 !important;}
   .report-table td{padding:2.5px 6px !important;line-height:1.15 !important;}
@@ -370,7 +347,6 @@ tr:hover td{background:var(--surface-soft);}
   tr{page-break-inside:avoid;page-break-after:auto;}
   th{background:#DCEFE1 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#2F5233 !important;}
   .badge{padding:2px 8px !important;font-size:10.5px !important;border-radius:10px !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  /* Soft pastel palette per payment type — cohesive, easy on the eyes */
   .badge-cash{background:#DCF2E3 !important;color:#3D7A4F !important;}
   .badge-credit{background:#DCE9F7 !important;color:#3A5F8A !important;}
   .badge-transfer{background:#EAE0F5 !important;color:#6B4A94 !important;}
@@ -380,9 +356,6 @@ tr:hover td{background:var(--surface-soft);}
   .card{box-shadow:none !important;border:none !important;padding:0 !important;}
   .empty-state{padding:20px !important;}
 
-  /* Landscape + slim margins: the combined report has many columns
-     (branch, customer type, name, bill no, amount, payment, note), so
-     landscape gives it the best shot at fitting on one sheet. */
   @page{ size: A4 landscape; margin:6mm; }
 }
 .print-only{display:none;}
@@ -391,7 +364,6 @@ tr:hover td{background:var(--surface-soft);}
 .helper-text{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
 .section-divider{height:1px;background:var(--border);margin:22px 0;}
 
-/* ===== Check calendar ===== */
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .cal-nav-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--ink);flex-shrink:0;}
 .cal-nav-btn:hover{background:var(--surface-soft);}
@@ -424,7 +396,6 @@ tr:hover td{background:var(--surface-soft);}
 </head>
 <body>
 
-<!-- ================= LOGIN ================= -->
 <div id="loginScreen">
   <div class="login-card">
     <img class="login-logo" src="data:image/jpeg;base64,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" alt="S.S.T logo">
@@ -444,7 +415,6 @@ tr:hover td{background:var(--surface-soft);}
   </div>
 </div>
 
-<!-- ================= APP SHELL ================= -->
 <div id="appShell">
   <div class="sidebar-overlay no-print" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
   <aside class="sidebar no-print" id="sidebar">
@@ -486,18 +456,11 @@ tr:hover td{background:var(--surface-soft);}
 
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!-- generic modal -->
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal" id="modalBox"></div>
 </div>
 
 <script>
-/* =========================================================
-   SST ACCOUNTING — prototype app
-   Data persistence: window.storage (shared = true) so every
-   device / user of this app sees the same company data.
-   ========================================================= */
-
 const PAY_TYPES = [
   {id:'cash', label:'เงินสด', icon:'💵', badge:'badge-cash'},
   {id:'credit_card', label:'บัตรเครดิต', icon:'💳', badge:'badge-credit'},
@@ -518,23 +481,14 @@ const TABS = [
 ];
 
 let DB = { users: [], sales: [], checks: [], branches: [] };
-let CURRENT = null; // logged in user object
+let CURRENT = null;
 let ACTIVE_TAB = 'dashboard';
 let TAB2_SUBVIEW = 'HS';
 let TAB1_CUSTVIEW = 'general';
 let sidebarOpen = false;
 let syncTimer = null;
-let HAS_CLOUD_SYNC = false; // true only when window.storage (cross-device sync) is actually available
+let HAS_CLOUD_SYNC = false;
 
-/* ---------- storage helpers -----------------------------------------
-   This app always saves to THIS browser's local storage first (which
-   always works, everywhere, instantly). If it's running inside a
-   Claude artifact view where window.storage (cross-device sync) is
-   available, it ALSO mirrors every save there so other devices see
-   it too. If window.storage is missing or fails, the save still
-   succeeds locally — it just won't be visible on other devices until
-   that's available again. Nothing is ever silently lost.
-   ---------------------------------------------------------------- */
 function lsGet(key){
   try{
     const raw = localStorage.getItem(key);
@@ -546,7 +500,7 @@ function lsSet(key, value){
   catch(e){ console.warn('localStorage write failed for', key, e); return false; }
 }
 let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0;
-const WRITE_COOLDOWN_MS = 20000; // don't let a remote pull clobber a save that's still mid-flight to Sheets
+const WRITE_COOLDOWN_MS = 20000;
 
 async function loadDB(){
   const u = await safeGet('sst_users');
@@ -559,29 +513,16 @@ async function loadDB(){
   DB.branches = b || defaultBranches();
   if(!u){ await saveUsers(); }
   if(!b){ await saveBranches(); }
-  // If Google Sheets is connected, it's the authoritative shared copy of
-  // employees, branches, sales, and checks — pull it so every device sees
-  // the same data, regardless of what this particular device/browser had
-  // stored locally.
   if(APPS_SCRIPT_URL){
     try{
       const controller = new AbortController();
-      // Apps Script can be genuinely slow, especially on a "cold start" —
-      // 7s was too aggressive and was aborting real, still-loading
-      // responses, silently leaving this device on stale/empty local data.
       const timeoutId = setTimeout(()=>controller.abort(), 25000);
       const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig', {signal: controller.signal});
       clearTimeout(timeoutId);
       const json = await res.json();
       if(json && json.ok){
-        // Skip overwriting anything if THIS device just saved something —
-        // the push to Sheets may still be in flight, so pulling right now
-        // would fetch a stale copy and make the just-saved record "vanish."
         if(json.users && (Date.now()-lastUsersWriteAt > WRITE_COOLDOWN_MS)){
           const remoteUsers = JSON.parse(json.users);
-          // Safety net: never let an empty (or transiently-empty) remote
-          // read wipe out a populated local list — this is what was
-          // causing employees to "disappear entirely" after a while.
           if(remoteUsers.length > 0 || DB.users.length === 0){
             DB.users = remoteUsers; lsSet('sst_users', DB.users);
           } else {
@@ -606,8 +547,6 @@ async function loadDB(){
   }
 }
 async function safeGet(key){
-  // Try cloud (cross-device) copy first if available, but never let it block —
-  // always fall back to this browser's local copy.
   if(window.storage){
     try{
       const r = await window.storage.get(key, true);
@@ -624,19 +563,10 @@ async function cloudSet(key, value){
     catch(e){ console.warn('cloud sync failed for '+key+' (still saved on this device)', e); }
   }
   if(!localOk){
-    // Extremely rare (storage full/disabled) — surface it, don't fail silently.
     throw new Error('ไม่สามารถบันทึกข้อมูลลงเครื่องนี้ได้ (พื้นที่จัดเก็บอาจเต็มหรือถูกปิดใช้งาน)');
   }
 }
 async function postToAppsScript(payload){
-  // Google Apps Script Web Apps have a known quirk: the /exec URL responds
-  // with a redirect, and fetch() sometimes can't read the final response
-  // for POST requests even when "Who has access" is correctly set to
-  // "Anyone" — the browser reports this as a CORS error. Try a normal
-  // (verifiable) request first; if THAT specifically fails due to CORS,
-  // fall back to a "fire-and-forget" no-cors request instead of giving up —
-  // Apps Script still receives and processes the request server-side even
-  // though the browser can't read the response back in that mode.
   try{
     const res = await fetch(APPS_SCRIPT_URL, { method:'POST', body: JSON.stringify(payload) });
     let json = null;
@@ -648,7 +578,7 @@ async function postToAppsScript(payload){
   }catch(e){
     console.warn('Normal POST failed (likely CORS) — retrying as no-cors fire-and-forget', e);
     await fetch(APPS_SCRIPT_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
-    return 'unverified'; // sent, but we can't confirm the server accepted it
+    return 'unverified';
   }
 }
 async function pushConfigToSheets(key, value, throwOnError){
@@ -661,13 +591,6 @@ async function pushConfigToSheets(key, value, throwOnError){
   }
 }
 async function pushUsersTableToSheets(throwOnError){
-  // Employees now live as real, editable rows in a Google Sheet tab (not a
-  // JSON blob) — Admin can add/edit rows directly in Sheets and the app
-  // will pick them up on next sync, no app access required.
-  // This bulk push is used ONLY by the manual "push this device's data up"
-  // button (to backfill an old local-only list) — Apps Script merges it
-  // additively rather than overwriting, so it's safe even if this device's
-  // local copy is missing employees other devices have added.
   if(!APPS_SCRIPT_URL) return;
   try{
     await postToAppsScript({ action:'saveUsersTable', data:{ users: DB.users } });
@@ -677,11 +600,6 @@ async function pushUsersTableToSheets(throwOnError){
   }
 }
 async function pushSingleUserToSheets(user, throwOnError){
-  // Regular day-to-day operations (add one employee, edit one, change your
-  // own password) push ONLY that one record — never the whole local list.
-  // This is what actually fixes employees "disappearing after a while": a
-  // full-list push from a device with a stale/incomplete local copy used
-  // to silently erase records that only existed on OTHER devices.
   if(!APPS_SCRIPT_URL) return;
   try{
     await postToAppsScript({ action:'upsertUser', data:{ user } });
@@ -704,15 +622,8 @@ async function saveSales(){
   lastSalesWriteAt = Date.now();
   console.log('[SAVE] saveSales called — DB.sales.length:', DB.sales.length, 'at', new Date().toLocaleTimeString());
   await cloudSet('sst_sales', DB.sales);
-  pushConfigToSheets('sales', DB.sales);
 }
 async function pushSaleUpsert(sale, throwOnError){
-  // Sales now live as real rows in their own "Sales" sheet tab — same fix
-  // as employees and checks: pushing only the ONE record that changed
-  // (instead of the whole local array into one shared cell) is what
-  // avoids both the "stale device erases others' records" race AND the
-  // 50,000-character single-cell limit that was silently breaking saves
-  // once enough records piled up (~30th record and beyond).
   if(!APPS_SCRIPT_URL) return;
   try{
     await postToAppsScript({ action:'upsertSale', data:{ sale } });
@@ -732,10 +643,6 @@ async function pushSaleDelete(saleId, throwOnError){
 }
 async function saveChecks(){ lastChecksWriteAt = Date.now(); await cloudSet('sst_checks', DB.checks); }
 async function pushCheckUpsert(check, throwOnError){
-  // Checks now live as real rows in their own "Checks" sheet tab — each
-  // check's thumbnail sits in its OWN cell instead of being crammed
-  // together with every other check into one shared cell, so the image
-  // can stay included without ever risking the 50,000-character cell limit.
   if(!APPS_SCRIPT_URL) return;
   try{
     await postToAppsScript({ action:'upsertCheck', data:{ check } });
@@ -755,31 +662,13 @@ async function pushCheckDelete(checkId, throwOnError){
 }
 async function saveBranches(){ lastBranchesWriteAt = Date.now(); await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
-/* =========================================================
-   GOOGLE SHEETS / DRIVE BRIDGE
-   Sheet: https://docs.google.com/spreadsheets/d/11tyyirqrzBd1pWAz6NcsKg2XKc-Wl0PRJZ4wmiK59y0/edit
-   Drive folder: https://drive.google.com/drive/folders/123WwCIWpYx8xkbP3ba0kx_4tIJ_eZWaV
-   These IDs are already baked into the Apps Script code (see the
-   Google-Sheets-Drive-Integration.md file). Once deployed, paste the
-   Web App URL below (or into Settings > Google Sync in the app).
-   This bridge works regardless of window.storage availability —
-   it's a plain fetch() to your deployed Apps Script.
-   ========================================================= */
-// Baked-in default so every device that opens this exact file auto-connects
-// on first load without needing to paste the URL manually. If a device later
-// saves a different URL via Settings, that per-device override always wins.
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyXPlEd6xLfbWO5ID5ActfU_ByaEuGy0tjSVhfvtedu9mSvR6jT7gEC65wKehjqoHQ-OA/exec';
 let APPS_SCRIPT_URL = '';
 async function loadAppsScriptUrl(){
   const saved = await safeGet('sst_apps_script_url');
-  // Treat "never set" AND "empty string" the same way — fall back to the
-  // baked-in default. A device that saved an empty value in an earlier
-  // version of this app (before the default existed) would otherwise be
-  // permanently stuck disconnected even after getting the latest file.
   const useDefault = (saved === null || saved === undefined || saved === '') && !!DEFAULT_APPS_SCRIPT_URL;
   APPS_SCRIPT_URL = useDefault ? DEFAULT_APPS_SCRIPT_URL : saved;
   if(useDefault){
-    // remember the baked-in default locally too, so Settings shows it as already connected
     lsSet('sst_apps_script_url', DEFAULT_APPS_SCRIPT_URL);
   }
 }
@@ -796,8 +685,6 @@ function thaiMonthYearFolder(dateStr){
 async function pushSaleToSheet(rec){
   if(!APPS_SCRIPT_URL) return;
   try{
-    // Fire-and-forget audit log entry — doesn't need to read the response,
-    // so go straight to no-cors to sidestep the Apps Script POST/CORS quirk.
     await fetch(APPS_SCRIPT_URL, {
       method:'POST',
       mode:'no-cors',
@@ -844,7 +731,6 @@ function getBranchList(){
   return [...all].sort((a,b)=>a.localeCompare(b,'th'));
 }
 
-/* ---------- utils ---------- */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
 function formatDDMMYYYY(iso){
@@ -859,16 +745,14 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   const day = String(d.getDate()).padStart(2,'0');
   const month = String(d.getMonth()+1).padStart(2,'0');
-  const year = d.getFullYear()+543; // Buddhist Era, matches the rest of the app
+  const year = d.getFullYear()+543;
   return `${day}/${month}/${year}`;
 }
 function fmtMoney(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 function isWithinEditWindow(dateStr){
-  // Staff can edit/delete their own record on the day it was recorded AND
-  // the following day — anything 2+ days old is locked (Admin unaffected).
   if(!dateStr) return false;
-  const diffDays = daysBetween(dateStr, todayStr()); // positive if dateStr is in the past
+  const diffDays = daysBetween(dateStr, todayStr());
   return diffDays <= 1;
 }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -885,7 +769,6 @@ function peakIcon(size){
   return `<span class="peak-mark" style="width:${size}px;height:${size*0.78}px"><svg viewBox="0 0 16 12" fill="none"><path d="M8 0L16 12H0L8 0Z" fill="currentColor"/></svg></span>`;
 }
 
-/* ---------- auth ---------- */
 function handleLogin(){
   const id = document.getElementById('loginId').value.trim().toLowerCase();
   const pass = document.getElementById('loginPass').value;
@@ -940,16 +823,15 @@ async function manualRefresh(){
 }
 function startSync(){
   clearInterval(syncTimer);
-  if(!HAS_CLOUD_SYNC && !APPS_SCRIPT_URL) return; // nothing to poll — this device is the only copy
+  if(!HAS_CLOUD_SYNC && !APPS_SCRIPT_URL) return;
   syncTimer = setInterval(async ()=>{
     await loadDB();
     renderContent();
     const label = document.getElementById('syncLabel');
     if(label) label.textContent = 'ซิงค์แล้วเมื่อสักครู่';
-  }, 15000); // 15s — balances feeling reasonably current against Apps Script's inherent latency
+  }, 15000);
 }
 
-/* ---------- permission helpers ---------- */
 function canSeeTab(tabId){
   if(!CURRENT) return false;
   if(CURRENT.role==='admin') return true;
@@ -959,7 +841,6 @@ function canSeeTab(tabId){
   return !!CURRENT.tabs[tabId];
 }
 
-/* ---------- shell / nav ---------- */
 function toggleSidebar(open){
   sidebarOpen = open;
   document.getElementById('sidebar').classList.toggle('open', open);
@@ -1011,18 +892,14 @@ function renderContent(){
 function renderNoAccess(){
   return `<div class="card"><div class="empty-state">${peakIcon(30)}<div>คุณไม่มีสิทธิ์เข้าถึงหน้านี้ กรุณาติดต่อผู้ดูแลระบบ</div></div></div>`;
 }
-function afterRender(){ /* hook for post-render JS if a page needs it */ }
+function afterRender(){ }
 
-/* ============ modal helpers ============ */
 function openModal(html){
   document.getElementById('modalBox').innerHTML = html;
   document.getElementById('modalBackdrop').style.display='flex';
 }
 function closeModal(){ document.getElementById('modalBackdrop').style.display='none'; document.getElementById('modalBox').innerHTML=''; }
 
-/* =========================================================
-   DASHBOARD
-   ========================================================= */
 function renderDashboard(){
   const today = todayStr();
   const isAdmin = CURRENT.role==='admin';
@@ -1064,20 +941,12 @@ function renderDashboard(){
   `;
 }
 
-/* =========================================================
-   TAB 1 — SALES REPORT
-   ========================================================= */
 function renderTab1(){
   const existingDateEl = document.getElementById('t1Date');
   const today = existingDateEl ? existingDateEl.value : todayStr();
   const isAdmin = CURRENT.role==='admin';
   let branches = getBranchList();
 
-  // Read the live DOM values FIRST (before rebuilding the filter bar) —
-  // same fix as the date field: using a separately-tracked variable that
-  // only gets updated *after* this HTML string is built caused the
-  // dropdown to visually revert to the previous selection every re-render
-  // (periodic sync, etc.), one cycle behind the actual filtered data.
   const existingPayEl = document.getElementById('t1Pay');
   const currentPay = existingPayEl ? existingPayEl.value : (window.__t1pay||'');
   window.__t1pay = currentPay;
@@ -1134,7 +1003,6 @@ function renderTab1(){
   `;
 }
 function maxAllowedDate(){
-  // staff can record forward-dated but the date field selected for entry defaults today; no upper cap enforced strictly, keep +365 days
   const d = new Date(); d.setDate(d.getDate()+365);
   return d.toISOString().slice(0,10);
 }
@@ -1153,7 +1021,6 @@ function renderTab1Table(){
     window.__t1branch = branch;
     if(branch) rows = rows.filter(s=>s.branch===branch);
   } else {
-    // staff only ever see their own branch's records — never other branches'
     rows = rows.filter(s=>s.branch===CURRENT.branch);
   }
   const billCounts = {};
@@ -1166,10 +1033,6 @@ function renderTab1Table(){
   if(!rows.length){
     return `<div class="empty-state">${peakIcon(26)}<div>ยังไม่มีรายการบันทึกในวันที่เลือก</div></div>`;
   }
-  // Exclude the synthetic "รวมบิลสีชมพู" combined record from the totals —
-  // its amount is already counted via the individual pink-bill entries it
-  // was built from, so including it too would double-count. The combined
-  // row itself still displays normally in the table for audit purposes.
   const totalRows = rows.filter(r=>!r.combinedFrom && !r.cancelled);
   const total = totalRows.reduce((a,b)=>a+Number(b.amount||0),0);
   const cashOnlyTotal = totalRows.filter(r=>r.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
@@ -1208,21 +1071,14 @@ function renderTab1Table(){
   </table></div>`;
 }
 function printReport(containerId, isModal){
-  // (Removed the earlier zoom()-based auto-shrink — it was causing a
-  // blank first page in print preview on some browsers. Font sizes are
-  // now fixed at a comfortably readable size via CSS instead.)
   if(isModal){
-    // When printing a report that's shown in a popup, the normal page
-    // behind it is still fully present in the DOM — without this, both
-    // the popup report AND the underlying page print out together (two
-    // separate reports stacked one after another).
     document.body.classList.add('printing-modal-report');
     const cleanup = function(){
       document.body.classList.remove('printing-modal-report');
       window.removeEventListener('afterprint', cleanup);
     };
     window.addEventListener('afterprint', cleanup);
-    setTimeout(cleanup, 10000); // safety net in case 'afterprint' doesn't fire on this browser
+    setTimeout(cleanup, 10000);
   }
   window.print();
 }
@@ -1259,10 +1115,6 @@ function refreshCombinedReport(){
   if(content) content.innerHTML = buildCombinedReportHtml(date, branch);
 }
 function buildCombinedReportHtml(date, branchFilter){
-  // Show/sum each individual pink-bill entry normally in this report — per
-  // request, only the synthetic "รวมบิลสีชมพู" combined record itself
-  // (combinedFrom set) is excluded, so its amount isn't double-counted
-  // on top of the individual entries it was built from.
   let daySales = DB.sales.filter(s=>s.date===date && !s.combinedFrom && !s.cancelled);
   if(branchFilter) daySales = daySales.filter(s=>s.branch===branchFilter);
   const letterhead = `
@@ -1337,6 +1189,7 @@ function deleteSale(id){
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   DB.sales.splice(idx,1);
   saveSales();
+  pushSaleDelete(id);
   renderShell();
   toast('ลบรายการแล้ว');
 }
@@ -1487,7 +1340,7 @@ async function submitSale(){
     closeModal();
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
-    pushSaleToSheet(updated);
+    pushSaleUpsert(updated);
     return;
   }
 
@@ -1503,7 +1356,7 @@ async function submitSale(){
   }
   renderShell();
   toast('บันทึกรายการเรียบร้อย');
-  pushSaleToSheet(rec);
+  pushSaleUpsert(rec);
   askSplitPayment(rec);
 }
 function openCancelSaleForm(id){
@@ -1545,7 +1398,7 @@ async function confirmCancelSale(id){
     toast('ยกเลิกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
     return;
   }
-  pushSaleToSheet(rec);
+  pushSaleUpsert(rec);
   closeModal();
   renderShell();
   toast('ยกเลิกรายการแล้ว — ไม่ถูกนำมารวมยอดอีกต่อไป');
@@ -1560,7 +1413,7 @@ async function uncancelSale(id){
   rec.cancelled = false;
   rec.cancelReason = '';
   await saveSales();
-  pushSaleToSheet(rec);
+  pushSaleUpsert(rec);
   renderShell();
   toast('คืนสถานะรายการแล้ว');
 }
@@ -1596,7 +1449,6 @@ function continueSplitPayment(){
   openSaleForm({customerName: rec.customerName, billNo: rec.billNo});
 }
 
-/* ---- pink-bill (บิลสีชมพู) combining into a single IV ---- */
 function openCombinePinkBills(){
   const isAdmin = CURRENT.role==='admin';
   const scopeSales = isAdmin ? DB.sales : DB.sales.filter(s=>s.branch===CURRENT.branch);
@@ -1669,12 +1521,10 @@ async function confirmCombinePinkBills(){
   closeModal();
   renderShell();
   toast(`รวมบิลสีชมพู ${sourceRecs.length} ใบเป็น ${ivNo} เรียบร้อย (ยอดรวม ฿${fmtMoney(total)})`);
-  pushSaleToSheet(combinedRec);
+  pushSaleUpsert(combinedRec);
+  sourceRecs.forEach(s=>{ pushSaleUpsert(s); });
 }
 
-/* =========================================================
-   TAB 2 — CASH SUMMARY (HS / RE)
-   ========================================================= */
 function renderTab2(){
   const date = getTab1FilterDateForTab2();
   const myAccess = CURRENT.role==='admin' ? {HS:true,IV:true} : (CURRENT.hsre||{});
@@ -1757,11 +1607,8 @@ function printTab2Preview(){
   `);
 }
 
-/* =========================================================
-   TAB 3 — CHECKS (เช็ครับลูกหนี้)
-   ========================================================= */
-let CHECK_VIEW = 'pending'; // pending | deposited | history
-let CHECK_SORT_ASC = true; // sort by checkDate — true: soonest due first
+let CHECK_VIEW = 'pending';
+let CHECK_SORT_ASC = true;
 window.__uploadedCheckImgFull = null;
 window.__uploadedCheckImgThumb = null;
 
@@ -1769,9 +1616,6 @@ function renderTab3(){
   const lists = getCheckLists();
   let rows = lists[CHECK_VIEW];
 
-  // Two independent date filters, stack together (AND) if both are set:
-  // - "วันที่รับเช็ค" (dateReceived) — the day staff logged the check
-  // - "วันที่ในเช็ค" (checkDate) — the due date written on the check itself
   const dateEl = document.getElementById('t3Date');
   const filterDate = dateEl ? dateEl.value : (window.__t3date||'');
   window.__t3date = filterDate;
@@ -1902,7 +1746,7 @@ async function viewCheckImage(id){
   }
   if(!full) full = lsGet('sst_checkimg_'+id);
   const body = document.getElementById('checkImgModalBody');
-  if(!body) return; // modal was closed already
+  if(!body) return;
   if(full){
     body.innerHTML = `<img src="${full}" style="max-width:100%;border-radius:8px">${c.driveUrl?`<div class="helper-text"><a href="${c.driveUrl}" target="_blank">เปิดใน Google Drive ↗</a></div>`:''}`;
   } else if(c.thumb){
@@ -2004,7 +1848,6 @@ function handleCheckImage(ev){
   reader.onload = function(e){
     const img = new Image();
     img.onload = function(){
-      // full-size version (stored in its own key, or sent to Drive)
       const fullCanvas = document.createElement('canvas');
       const fullMaxW = 900;
       const fullScale = Math.min(1, fullMaxW/img.width);
@@ -2012,7 +1855,6 @@ function handleCheckImage(ev){
       fullCanvas.getContext('2d').drawImage(img,0,0,fullCanvas.width,fullCanvas.height);
       window.__uploadedCheckImgFull = fullCanvas.toDataURL('image/jpeg', 0.75);
 
-      // small thumbnail kept inline with the check record for fast table display
       const thumbCanvas = document.createElement('canvas');
       const thumbMaxW = 140;
       const thumbScale = Math.min(1, thumbMaxW/img.width);
@@ -2063,7 +1905,7 @@ async function submitCheck(){
     if(idx<0){ toast('ไม่พบรายการเช็คนี้', true); return; }
     const existing = DB.checks[idx];
     const updated = Object.assign({}, existing, f);
-    if(!fullImg && !f.thumb){ updated.thumb = existing.thumb; } // no new upload — keep old thumb
+    if(!fullImg && !f.thumb){ updated.thumb = existing.thumb; }
     DB.checks[idx] = updated;
     try{
       await saveChecks();
@@ -2110,7 +1952,6 @@ async function submitCheck(){
   if(fullImg) pushCheckImageToDrive(rec, fullImg);
 }
 
-/* ---- calendar view ---- */
 let CAL_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 function calNav(delta){
   CAL_MONTH = new Date(CAL_MONTH.getFullYear(), CAL_MONTH.getMonth()+delta, 1);
@@ -2126,12 +1967,11 @@ function renderTab3Cal(){
 
   const year = CAL_MONTH.getFullYear();
   const month = CAL_MONTH.getMonth();
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const monthLabel = CAL_MONTH.toLocaleDateString('th-TH', {month:'long', year:'numeric'});
   const dowLabels = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 
-  // group active checks by date string for quick lookup
   const byDate = {};
   active.forEach(c=>{ (byDate[c.checkDate] = byDate[c.checkDate] || []).push(c); });
 
@@ -2208,9 +2048,6 @@ function openCalDay(dateStr){
   `);
 }
 
-/* =========================================================
-   SETTINGS — permissions & staff
-   ========================================================= */
 function renderSettings(){
   if(CURRENT.role!=='admin') return renderNoAccess();
   return `
@@ -2386,9 +2223,6 @@ async function runSyncStatusCheck(){
 }
 async function pushLocalUsersAndBranchesToSheets(){
   if(!APPS_SCRIPT_URL){ toast('กรุณาเชื่อมต่อ Google Sheets ก่อน', true); return; }
-  // Safety check: if the central copy on Sheets already has MORE employees
-  // than this device does, warn loudly before overwriting — this is the
-  // #1 way a permanent employee list accidentally gets wiped back down.
   try{
     const res = await fetch(APPS_SCRIPT_URL + '?action=loadConfig');
     const remote = await res.json();
@@ -2406,8 +2240,8 @@ async function pushLocalUsersAndBranchesToSheets(){
   try{
     await pushUsersTableToSheets(true);
     await pushConfigToSheets('branches', DB.branches, true);
-    await pushConfigToSheets('sales', DB.sales, true);
-    await pushConfigToSheets('checks', DB.checks, true);
+    for(const s of DB.sales){ await pushSaleUpsert(s, true); }
+    for(const c of DB.checks){ await pushCheckUpsert(c, true); }
     toast('ส่งข้อมูลของเครื่องนี้ขึ้น Google Sheets เรียบร้อย (ยืนยันจาก Apps Script แล้ว)');
   }catch(e){
     console.error('pushLocalUsersAndBranchesToSheets failed', e);
@@ -2580,9 +2414,6 @@ async function changeSelfPass(){
   renderShell();
 }
 
-/* ---------- debug helper: reliably accessible from any browser's console,
-   even ones (like Safari) that don't expose top-level let/const to the
-   console evaluator ---------- */
 window.SST_DEBUG = function(){
   return {
     APPS_SCRIPT_URL: APPS_SCRIPT_URL,
@@ -2596,7 +2427,6 @@ window.SST_DEBUG = function(){
   };
 };
 
-/* ---------- global safety net: never fail silently ---------- */
 window.addEventListener('error', function(e){
   console.error('Uncaught error:', e.error || e.message);
   toast('เกิดข้อผิดพลาดในระบบ: '+(e.message||'ไม่ทราบสาเหตุ')+' — ลองรีเฟรชหน้าใหม่หากยังพบปัญหาซ้ำ', true);
@@ -2606,7 +2436,6 @@ window.addEventListener('unhandledrejection', function(e){
   toast('เกิดข้อผิดพลาดขณะบันทึก/โหลดข้อมูล กรุณาลองใหม่อีกครั้ง', true);
 });
 
-/* ---------- boot ---------- */
 (async function boot(){
   HAS_CLOUD_SYNC = typeof window.storage !== 'undefined' && window.storage !== null;
   await loadAppsScriptUrl();
