@@ -793,6 +793,11 @@ function isWithinEditWindow(dateStr){
   return diffDays <= 1;
 }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+// เทียบชื่อสาขาแบบยืดหยุ่น — ตัดช่องว่างหัวท้าย รวมช่องว่างซ้ำๆ ให้เหลืออันเดียว
+// และไม่สนตัวพิมพ์ใหญ่เล็ก กันปัญหาช่องว่างแฝง/พิมพ์ไม่ตรงกันเป๊ะทำให้ข้อมูล
+// ของสาขาเดียวกันไม่จับคู่กัน (เช่น พนักงานไม่เห็นรายการที่ Admin บันทึกไว้)
+function normBranch(s){ return String(s==null?'':s).replace(/\s+/g,' ').trim().toLowerCase(); }
+function sameBranch(a,b){ return normBranch(a) === normBranch(b) && normBranch(a) !== ''; }
 function toast(msg, isErr){
   const wrap = document.getElementById('toastWrap');
   const t = document.createElement('div');
@@ -940,7 +945,7 @@ function closeModal(){ document.getElementById('modalBackdrop').style.display='n
 function renderDashboard(){
   const today = todayStr();
   const isAdmin = CURRENT.role==='admin';
-  const scopedSales = isAdmin ? DB.sales : DB.sales.filter(s=>s.branch===CURRENT.branch);
+  const scopedSales = isAdmin ? DB.sales : DB.sales.filter(s=>sameBranch(s.branch, CURRENT.branch));
   const todaySales = scopedSales.filter(s=>s.date===today && !s.cancelled && !s.combinedFrom);
   const totalToday = todaySales.reduce((a,b)=>a+Number(b.amount||0),0);
   const cashToday = todaySales.filter(s=>s.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
@@ -1058,7 +1063,7 @@ function renderTab1Table(){
     window.__t1branch = branch;
     if(branch) rows = rows.filter(s=>s.branch===branch);
   } else {
-    rows = rows.filter(s=>s.branch===CURRENT.branch);
+    rows = rows.filter(s=>sameBranch(s.branch, CURRENT.branch));
   }
   const billCounts = {};
   rows.forEach(r=>{ billCounts[r.billNo] = (billCounts[r.billNo]||0)+1; });
@@ -1488,7 +1493,7 @@ function continueSplitPayment(){
 
 function openCombinePinkBills(){
   const isAdmin = CURRENT.role==='admin';
-  const scopeSales = isAdmin ? DB.sales : DB.sales.filter(s=>s.branch===CURRENT.branch);
+  const scopeSales = isAdmin ? DB.sales : DB.sales.filter(s=>sameBranch(s.branch, CURRENT.branch));
   const candidates = scopeSales.filter(s=>s.pinkBill && !s.combinedInto).sort((a,b)=>(a.date<b.date?1:-1) || a.no-b.no);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} 🌸 รวมบิลสีชมพูเป็น IV</div><button class="modal-close" onclick="closeModal()">✕</button></div>
