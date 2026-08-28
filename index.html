@@ -538,10 +538,26 @@ async function loadDB(){
         if(json.sales){
           const withinCooldown = (Date.now()-lastSalesWriteAt <= WRITE_COOLDOWN_MS);
           const remoteCount = (function(){ try{ return JSON.parse(json.sales).length; }catch(e){ return 'parse-error'; } })();
-          console.log('[SYNC] sales pull — local:', DB.sales.length, 'remote:', remoteCount, withinCooldown ? '(SKIPPED — within cooldown)' : '(APPLYING)');
-          if(!withinCooldown){ DB.sales = JSON.parse(json.sales); lsSet('sst_sales', DB.sales); }
+          console.log('[SYNC] sales pull — local:', DB.sales.length, 'remote:', remoteCount, withinCooldown ? '(SKIPPED — within cooldown)' : '(APPLYING, merged)');
+          if(!withinCooldown){
+            const remoteSales = JSON.parse(json.sales);
+            // สำคัญ: ไม่ทับข้อมูลในเครื่องทั้งหมด — เก็บรายการที่บันทึกในเครื่อง
+            // ไว้เสมอถ้ายังไม่ปรากฏใน Sheets (กันปัญหา "บันทึกแล้วหาย" ไม่ว่า
+            // การส่งขึ้น Sheets จะสำเร็จช้าหรือหลุดไปด้วยเหตุผลใดก็ตาม) —
+            // ถือว่าเครื่องนี้ "รู้ดีกว่า" สำหรับ id ที่ยังไม่เห็นใน remote
+            const remoteIds = new Set(remoteSales.map(s=>s.id));
+            const localOnly = DB.sales.filter(s=>!remoteIds.has(s.id));
+            DB.sales = remoteSales.concat(localOnly);
+            lsSet('sst_sales', DB.sales);
+          }
         }
-        if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){ DB.checks = JSON.parse(json.checks); lsSet('sst_checks', DB.checks); }
+        if(json.checks && (Date.now()-lastChecksWriteAt > WRITE_COOLDOWN_MS)){
+          const remoteChecks = JSON.parse(json.checks);
+          const remoteCheckIds = new Set(remoteChecks.map(c=>c.id));
+          const localOnlyChecks = DB.checks.filter(c=>!remoteCheckIds.has(c.id));
+          DB.checks = remoteChecks.concat(localOnlyChecks);
+          lsSet('sst_checks', DB.checks);
+        }
       }
     }catch(e){ console.warn('central config fetch failed or timed out, using local copy for this device', e); }
   }
