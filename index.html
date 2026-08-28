@@ -464,6 +464,24 @@ tr:hover td{background:var(--surface-soft);}
 </div>
 
 <script>
+// ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
+// จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
+// ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
+const APP_VERSION = 'sst-build-20260828-3';
+(function checkForUpdate(){
+  try{
+    fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        if(html.indexOf(APP_VERSION) === -1){
+          location.href = location.pathname + '?_v=' + Date.now();
+        }
+      })
+      .catch(function(){});
+  }catch(e){}
+})();
+</script>
+<script>
 const PAY_TYPES = [
   {id:'cash', label:'เงินสด', icon:'💵', badge:'badge-cash'},
   {id:'credit_card', label:'บัตรเครดิต', icon:'💳', badge:'badge-credit'},
