@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260831-4';
+const APP_VERSION = 'sst-build-20260831-5';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -700,13 +700,21 @@ async function pushCheckDelete(checkId, throwOnError){
 async function saveBranches(){ lastBranchesWriteAt = Date.now(); await cloudSet('sst_branches', DB.branches); pushConfigToSheets('branches', DB.branches); }
 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMRqwX97f1K3JqOZ0oEs1JNWBHA9lY03pQkgkXQkINx7reMQUtEMXz9uvof5agunfUsg/exec';
+// เพิ่มเลขนี้ทุกครั้งที่เปลี่ยน DEFAULT_APPS_SCRIPT_URL ด้านบน — ระบบจะบังคับ
+// ใช้ URL ใหม่ทับของเก่าที่เคยบันทึกไว้ใน localStorage ของทุกเครื่องโดยอัตโนมัติ
+// (ก่อนหน้านี้เครื่องที่เคยเปิดแอปมาแล้วจะ "จำ" URL เก่าไว้ถาวรแม้โค้ดจะอัปเดต
+// แล้วก็ตาม นี่คือจุดที่ทำให้พนักงานยังเชื่อมกับ URL ที่ตายไปแล้วอยู่)
+const DEFAULT_APPS_SCRIPT_URL_VERSION = 2;
 let APPS_SCRIPT_URL = '';
 async function loadAppsScriptUrl(){
   const saved = await safeGet('sst_apps_script_url');
-  const useDefault = (saved === null || saved === undefined || saved === '') && !!DEFAULT_APPS_SCRIPT_URL;
+  const savedVersion = Number(await safeGet('sst_apps_script_url_version')) || 0;
+  const isOutdated = savedVersion < DEFAULT_APPS_SCRIPT_URL_VERSION;
+  const useDefault = ((saved === null || saved === undefined || saved === '') || isOutdated) && !!DEFAULT_APPS_SCRIPT_URL;
   APPS_SCRIPT_URL = useDefault ? DEFAULT_APPS_SCRIPT_URL : saved;
   if(useDefault){
     lsSet('sst_apps_script_url', DEFAULT_APPS_SCRIPT_URL);
+    lsSet('sst_apps_script_url_version', DEFAULT_APPS_SCRIPT_URL_VERSION);
   }
 }
 async function saveAppsScriptUrl(url){
