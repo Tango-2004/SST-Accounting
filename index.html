@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260902-6';
+const APP_VERSION = 'sst-build-20260904-8';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -501,7 +501,7 @@ const TABS = [
   {id:'settings', label:'ตั้งค่าสิทธิ์', group:'ผู้ดูแลระบบ', adminOnly:true},
 ];
 
-let DB = { users: [], sales: [], checks: [], branches: [] };
+let DB = { users: [], sales: [], checks: [], branches: [], cashEntries: [] };
 let CURRENT = null;
 let ACTIVE_TAB = 'dashboard';
 let TAB2_SUBVIEW = 'HS';
@@ -520,7 +520,7 @@ function lsSet(key, value){
   try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
   catch(e){ console.warn('localStorage write failed for', key, e); return false; }
 }
-let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0;
+let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0, lastCashEntriesWriteAt = 0;
 const WRITE_COOLDOWN_MS = 20000;
 
 async function loadDB(){
@@ -528,10 +528,12 @@ async function loadDB(){
   const s = await safeGet('sst_sales');
   const c = await safeGet('sst_checks');
   const b = await safeGet('sst_branches');
+  const ce = await safeGet('sst_cashentries');
   DB.users = u || defaultUsers();
   DB.sales = s || [];
   DB.checks = c || [];
   DB.branches = b || defaultBranches();
+  DB.cashEntries = ce || [];
   if(!u){ await saveUsers(); }
   if(!b){ await saveBranches(); }
   if(APPS_SCRIPT_URL){
@@ -578,6 +580,13 @@ async function loadDB(){
           const localOnlyChecks = DB.checks.filter(c=>!remoteCheckIds.has(c.id));
           DB.checks = remoteChecks.concat(localOnlyChecks);
           lsSet('sst_checks', DB.checks);
+        }
+        if(json.cashEntries && (Date.now()-lastCashEntriesWriteAt > WRITE_COOLDOWN_MS)){
+          const remoteCashEntries = JSON.parse(json.cashEntries);
+          const remoteCashIds = new Set(remoteCashEntries.map(x=>x.id));
+          const localOnlyCash = DB.cashEntries.filter(x=>!remoteCashIds.has(x.id));
+          DB.cashEntries = remoteCashEntries.concat(localOnlyCash);
+          lsSet('sst_cashentries', DB.cashEntries);
         }
       }
     }catch(e){ console.warn('central config fetch failed or timed out, using local copy for this device', e); }
@@ -694,6 +703,25 @@ async function pushCheckDelete(checkId, throwOnError){
     await postToAppsScript({ action:'deleteCheck', data:{ id: checkId } });
   }catch(e){
     console.warn('pushCheckDelete failed (deleted on this device only)', e);
+    if(throwOnError) throw e;
+  }
+}
+async function saveCashEntries(){ lastCashEntriesWriteAt = Date.now(); await cloudSet('sst_cashentries', DB.cashEntries); }
+async function pushCashEntryUpsert(entry, throwOnError){
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    await postToAppsScript({ action:'upsertCashEntry', data:{ entry } });
+  }catch(e){
+    console.warn('pushCashEntryUpsert failed (saved on this device only)', e);
+    if(throwOnError) throw e;
+  }
+}
+async function pushCashEntryDelete(entryId, throwOnError){
+  if(!APPS_SCRIPT_URL) return;
+  try{
+    await postToAppsScript({ action:'deleteCashEntry', data:{ id: entryId } });
+  }catch(e){
+    console.warn('pushCashEntryDelete failed (deleted on this device only)', e);
     if(throwOnError) throw e;
   }
 }
@@ -1590,9 +1618,12 @@ function renderTab2(){
   }
   if(!availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0];
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
+  const canManageCash = CURRENT.role==='accounting' || CURRENT.role==='admin';
 
   const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
-  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
+  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const hasAny = rows.length || manualRows.length;
 
   return `
     <div class="filter-bar no-print">
@@ -1604,16 +1635,101 @@ function renderTab2(){
     <div class="card type-card ${typeClass}">
       <div class="card-header">
         <div class="card-title"><span class="type-chip ${typeClass}">${peakIcon(11)} ${TAB2_SUBVIEW}</span> สรุปเงินสด — ${fmtDate(date)}</div>
-        <button class="btn btn-outline btn-sm no-print" onclick="printTab2Preview()">ดูตัวอย่าง / พิมพ์</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm no-print" onclick="printTab2Preview()">ดูตัวอย่าง / พิมพ์</button>
+          ${canManageCash?`<button class="btn btn-primary btn-sm no-print" onclick="openCashEntryForm()">+ เพิ่มรายการ</button>`:''}
+        </div>
       </div>
-      <p class="helper-text" style="margin-top:0">แสดงเฉพาะรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ 1,000 บาท</p>
-      ${rows.length? `<div class="table-wrap"><table>
-        <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
-        <tbody>${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('')}</tbody>
-        <tfoot><tr style="font-weight:700"><td colspan="3">ยอดรวมทั้งหมด (${TAB2_SUBVIEW})</td><td style="text-align:right">${fmtMoney(total)}</td><td></td></tr></tfoot>
-      </table></div>` : `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการเงินสด ≥ 1,000 บาท ในวันที่เลือก</div></div>`}
+      <p class="helper-text" style="margin-top:0">แสดงรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ 1,000 บาท (จากหน้ารายงานการขาย) รวมกับรายการที่บัญชีเพิ่มเองโดยตรง</p>
+      ${hasAny? `<div class="table-wrap"><table>
+        <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th>${canManageCash?'<th class="no-print"></th>':''}</tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
+          ${manualRows.map(e=>`<tr>
+            <td>${fmtDate(e.date)}</td><td>${escapeHtml(e.customerName)}</td>
+            <td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(e.billNo)}</span></td>
+            <td style="text-align:right">${fmtMoney(e.amount)}</td><td>${e.bank||'เงินสด'}</td>
+            ${canManageCash?`<td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="openCashEntryForm(${JSON.stringify(e).replace(/"/g,'&quot;')})">แก้ไข</button>
+              <button class="btn btn-ghost btn-sm" onclick="deleteCashEntry('${e.id}')">ลบ</button>
+            </td>`:''}
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr style="font-weight:700"><td colspan="3">ยอดรวมทั้งหมด (${TAB2_SUBVIEW})</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${canManageCash?2:1}"></td></tr></tfoot>
+      </table></div>` : `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการในวันที่เลือก</div></div>`}
     </div>
   `;
+}
+function openCashEntryForm(editRecord){
+  const e = editRecord || null;
+  window.__editingCashEntryId = e ? e.id : null;
+  const date = e ? e.date : getTab1FilterDateForTab2();
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${e?'แก้ไขรายการ':'เพิ่มรายการ'} — ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="locked-notice">${peakIcon(13)} รายการนี้จะถูกนับรวมในยอด ${TAB2_SUBVIEW} โดยตรง ไม่ผูกกับหน้ารายงานการขาย</div>
+      <div class="form-grid">
+        <div class="field"><label>วันที่</label><input type="date" id="ceDate" value="${date}" oninput="document.getElementById('ceDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="ceDateCap">${formatDDMMYYYY(date)}</span></div>
+        <div class="field"><label>เลขที่บิล</label><input type="text" id="ceBill" placeholder="เช่น ${TAB2_SUBVIEW}0001" value="${e?escapeHtml(e.billNo):''}"></div>
+        <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="ceCustomer" value="${e?escapeHtml(e.customerName):''}"></div>
+        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="ceAmount" step="0.01" placeholder="0.00" value="${e?e.amount:''}"></div>
+        <div class="field"><label>ธนาคาร/ช่องทาง</label><input type="text" id="ceBank" placeholder="เงินสด" value="${e?escapeHtml(e.bank||''):''}"></div>
+        <div class="field full"><label>หมายเหตุ</label><input type="text" id="ceNote" placeholder="(ไม่บังคับ)" value="${e?escapeHtml(e.note||''):''}"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="window.__editingCashEntryId=null;closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitCashEntry()">${e?'บันทึกการแก้ไข':'บันทึก'}</button>
+    </div>
+  `);
+}
+async function submitCashEntry(){
+  const date = document.getElementById('ceDate').value;
+  const billNo = document.getElementById('ceBill').value.trim();
+  const customerName = document.getElementById('ceCustomer').value.trim();
+  const amount = Number(document.getElementById('ceAmount').value)||0;
+  const bank = document.getElementById('ceBank').value.trim();
+  const note = document.getElementById('ceNote').value.trim();
+  if(!customerName){ toast('กรุณากรอกชื่อลูกค้า', true); flagInvalidField('ceCustomer'); return; }
+  if(!billNo){ toast('กรุณากรอกเลขที่บิล', true); flagInvalidField('ceBill'); return; }
+  if(!amount || amount<=0){ toast('กรุณากรอกยอดเงินให้ถูกต้อง', true); flagInvalidField('ceAmount'); return; }
+  if(!date){ toast('กรุณาเลือกวันที่', true); flagInvalidField('ceDate'); return; }
+
+  const editId = window.__editingCashEntryId;
+  if(editId){
+    const idx = DB.cashEntries.findIndex(x=>x.id===editId);
+    if(idx<0){ toast('ไม่พบรายการนี้', true); return; }
+    const existing = DB.cashEntries[idx];
+    const updated = Object.assign({}, existing, { date, billNo, customerName, amount, bank, note });
+    DB.cashEntries[idx] = updated;
+    try{ await saveCashEntries(); }
+    catch(e){ DB.cashEntries[idx] = existing; toast('บันทึกการแก้ไขไม่สำเร็จ กรุณาลองใหม่', true); return; }
+    pushCashEntryUpsert(updated);
+    window.__editingCashEntryId = null;
+    closeModal(); renderShell();
+    toast('แก้ไขรายการเรียบร้อย');
+    return;
+  }
+
+  const rec = { id: uid(), type: TAB2_SUBVIEW, date, billNo, customerName, amount, bank, note, enteredBy: CURRENT.name, enteredById: CURRENT.id, createdAt: Date.now() };
+  DB.cashEntries.push(rec);
+  try{ await saveCashEntries(); }
+  catch(e){ DB.cashEntries.pop(); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCashEntryUpsert(rec);
+  closeModal(); renderShell();
+  toast('บันทึกรายการเรียบร้อย');
+}
+async function deleteCashEntry(id){
+  if(!confirm('ยืนยันลบรายการนี้?')) return;
+  const idx = DB.cashEntries.findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const removed = DB.cashEntries[idx];
+  DB.cashEntries.splice(idx,1);
+  try{ await saveCashEntries(); }
+  catch(e){ DB.cashEntries.splice(idx,0,removed); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCashEntryDelete(id);
+  renderShell();
+  toast('ลบรายการแล้ว');
 }
 function getTab1FilterDateForTab2(){
   const el = document.getElementById('t2Date');
@@ -1626,19 +1742,22 @@ function printTab2Preview(){
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const sectionsHtml = types.map(type=>{
     const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(type) && !s.combinedInto);
-    const subTotal = rows.reduce((a,b)=>a+Number(b.amount||0),0);
+    const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===type);
+    const allRows = rows.concat(manualRows);
+    const subTotal = allRows.reduce((a,b)=>a+Number(b.amount||0),0);
     return `
       <h3 style="font-family:'Kanit';margin:14px 0 6px">${type}</h3>
       <div class="table-wrap"><table class="report-table">
         <thead><tr><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
-        <tbody>${rows.length ? rows.map(r=>`<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
+        <tbody>${allRows.length ? allRows.map(r=>`<tr><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
         <tfoot><tr style="font-weight:700"><td colspan="2">รวม ${type}</td><td style="text-align:right">${fmtMoney(subTotal)}</td><td></td></tr></tfoot>
       </table></div>
     `;
   }).join('');
   const grandTotal = types.reduce((sum,type)=>{
     const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(type) && !s.combinedInto);
-    return sum + rows.reduce((a,b)=>a+Number(b.amount||0),0);
+    const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===type);
+    return sum + rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนพิมพ์ — ${types.join(' + ')}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
