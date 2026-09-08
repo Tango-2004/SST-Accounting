@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260908-14';
+const APP_VERSION = 'sst-build-20260908-15';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -785,6 +785,13 @@ async function pushCheckImageToDrive(rec, fullImageDataUrl, silent){
       rec.driveUrl = json.url;
       await saveChecks();
       pushCheckUpsert(rec);
+      // อัปโหลดขึ้น Google Drive สำเร็จแล้ว — ลบสำเนารูปเต็มที่เก็บสำรองไว้
+      // ในเครื่องนี้ทิ้ง (ทั้ง localStorage และ cloud storage ถ้ามี) เพราะไม่
+      // จำเป็นต้องเก็บซ้ำอีกต่อไป กันปัญหาพื้นที่จัดเก็บในเครื่องเต็ม —
+      // รูปย่อ (thumb) ยังคงอยู่สำหรับแสดงในตารางตามปกติ ส่วนรูปเต็มเปิดดูได้
+      // ผ่านลิงก์ Drive แทน
+      try{ localStorage.removeItem('sst_checkimg_'+rec.id); }catch(e){}
+      if(window.storage){ try{ await window.storage.delete('sst_checkimg_'+rec.id, true); }catch(e){} }
     }
   }catch(e){ console.error('pushCheckImageToDrive failed', e); if(!silent) toast('บันทึกเช็คในแอปสำเร็จ แต่อัปโหลดรูปเข้า Drive ไม่สำเร็จ', true); }
 }
