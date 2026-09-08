@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260908-15';
+const APP_VERSION = 'sst-build-20260908-16';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -518,7 +518,23 @@ function lsGet(key){
 }
 function lsSet(key, value){
   try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
-  catch(e){ console.warn('localStorage write failed for', key, e); return false; }
+  catch(e){
+    // localStorage เต็ม (ปกติเกิดจากรูปเช็คสำรองที่สะสมไว้) — ล้างสำเนารูปเต็ม
+    // ที่ค้างอยู่ในเครื่องนี้ทิ้งอัตโนมัติ (ไม่ใช่ข้อมูลจริง แค่สำเนาสำรอง —
+    // ยังดึงรูปจริงจาก Google Drive ได้ปกติ) แล้วลองบันทึกซ้ำอีกครั้งทันที
+    // ทำงานให้ทุกบัญชีโดยไม่ต้องเข้าเมนูตั้งค่าหรือพิมพ์คำสั่งใดๆ เลย
+    console.warn('localStorage write failed for', key, '— กำลังล้างพื้นที่อัตโนมัติแล้วลองใหม่', e);
+    try{
+      Object.keys(localStorage).filter(k=>k.startsWith('sst_checkimg_')).forEach(function(k){
+        try{ localStorage.removeItem(k); }catch(e2){}
+      });
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    }catch(e3){
+      console.warn('localStorage write still failed after clearing cache for', key, e3);
+      return false;
+    }
+  }
 }
 let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0, lastCashEntriesWriteAt = 0;
 const WRITE_COOLDOWN_MS = 20000;
@@ -2666,6 +2682,14 @@ window.addEventListener('unhandledrejection', function(e){
   HAS_CLOUD_SYNC = typeof window.storage !== 'undefined' && window.storage !== null;
   await loadAppsScriptUrl();
   await loadDB();
+  // เคลียร์สำเนารูปเช็คเต็มที่ค้างอยู่ในเครื่องนี้ สำหรับเช็คที่อัปโหลดขึ้น
+  // Google Drive สำเร็จไปแล้ว (มี driveUrl) — ล้างของเก่าที่สะสมไว้ก่อนหน้านี้
+  // ทิ้งครั้งเดียวตอนเปิดแอป กันปัญหาพื้นที่จัดเก็บในเครื่องเต็ม
+  try{
+    (DB.checks||[]).forEach(function(c){
+      if(c.driveUrl){ try{ localStorage.removeItem('sst_checkimg_'+c.id); }catch(e){} }
+    });
+  }catch(e){ console.warn('cleanup of cached check images failed', e); }
   // อุปกรณ์ใหม่ที่ไม่มีข้อมูลในเครื่องเลย มักโดน Apps Script "ตื่นช้า" (cold start)
   // ในการเรียกครั้งแรก ทำให้ดึงข้อมูลไม่ทัน — ลองดึงซ้ำอัตโนมัติอีกครั้งหลัง 4 วิ
   // และอีกครั้งหลัง 10 วิ โดยไม่ต้องให้คนกดปุ่ม 🔄 เอง
