@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260904-10';
+const APP_VERSION = 'sst-build-20260908-14';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -830,6 +830,9 @@ function fmtDate(iso){
 function fmtMoney(n){ return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 function isWithinEditWindow(dateStr){
+  // role "หัวหน้า" (supervisor) แก้ไขย้อนหลังได้ไม่จำกัดจำนวนวัน — ส่วนเงื่อนไขอื่น
+  // (เช่น แก้ได้เฉพาะรายการของตัวเอง) ยังคงเหมือนพนักงานทั่วไปทุกประการ
+  if(CURRENT && CURRENT.role==='supervisor') return true;
   if(!dateStr) return false;
   const diffDays = daysBetween(dateStr, todayStr());
   return diffDays <= 1;
@@ -933,7 +936,11 @@ function toggleSidebar(open){
 function renderShell(){
   document.getElementById('sideAvatar').textContent = (CURRENT.name||'?').slice(0,1).toUpperCase();
   document.getElementById('sideUserName').textContent = CURRENT.name;
-  document.getElementById('sideUserRole').textContent = CURRENT.role==='admin' ? 'ผู้ดูแลระบบ' : ('พนักงาน · '+(CURRENT.branch||'-'));
+  document.getElementById('sideUserRole').textContent =
+    CURRENT.role==='admin' ? 'ผู้ดูแลระบบ' :
+    CURRENT.role==='supervisor' ? 'หัวหน้า · '+(CURRENT.branch||'-') :
+    CURRENT.role==='accounting' ? 'พนักงานบัญชี' :
+    ('พนักงาน · '+(CURRENT.branch||'-'));
   const nav = document.getElementById('navList');
   let html='';
   let lastGroup=null;
@@ -986,7 +993,7 @@ function closeModal(){ document.getElementById('modalBackdrop').style.display='n
 
 function renderDashboard(){
   const today = todayStr();
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const scopedSales = isAdmin ? DB.sales : DB.sales.filter(s=>sameBranch(s.branch, CURRENT.branch));
   const todaySales = scopedSales.filter(s=>s.date===today && !s.cancelled && !s.combinedFrom);
   const totalToday = todaySales.reduce((a,b)=>a+Number(b.amount||0),0);
@@ -1028,7 +1035,7 @@ function renderDashboard(){
 function renderTab1(){
   const existingDateEl = document.getElementById('t1Date');
   const today = existingDateEl ? existingDateEl.value : todayStr();
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   let branches = getBranchList();
 
   const existingPayEl = document.getElementById('t1Pay');
@@ -1096,7 +1103,7 @@ function getTab1FilterDate(){
 }
 function renderTab1Table(){
   const date = getTab1FilterDate();
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   console.log('[RENDER] Tab1Table — DB.sales.length:', DB.sales.length, 'filterDate:', date, 'view:', TAB1_CUSTVIEW);
   let rows = DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW);
   if(isAdmin){
@@ -1131,7 +1138,7 @@ function renderTab1Table(){
         const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
         return `<tr${r.cancelled?' style="opacity:0.6"':''}>
           <td>${r.no}</td>
-          <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}</td>
+          <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}${(r.contactName||r.contactPhone)?`<br><span class="helper-text" style="margin:0">${r.contactName?escapeHtml(r.contactName):''}${r.contactName&&r.contactPhone?' · ':''}${r.contactPhone?escapeHtml(r.contactPhone):''}</span>`:''}</td>
           <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
@@ -1140,17 +1147,17 @@ function renderTab1Table(){
           <td>${r.cancelled?`<b>เหตุผลยกเลิก:</b> ${escapeHtml(r.cancelReason||'-')}`:(r.note?escapeHtml(r.note):'-')}</td>
           <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
           <td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
-            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-outline btn-sm" onclick="editSale('${r.id}')">แก้ไข</button>`:''}
-            ${(!r.cancelled && (CURRENT.role==='admin' || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date))))?`<button class="btn btn-outline btn-sm" onclick="openCancelSaleForm('${r.id}')">ยกเลิก</button>`:''}
+            ${((CURRENT.role==='admin'||CURRENT.role==='supervisor') || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-outline btn-sm" onclick="editSale('${r.id}')">แก้ไข</button>`:''}
+            ${(!r.cancelled && ((CURRENT.role==='admin'||CURRENT.role==='supervisor') || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date))))?`<button class="btn btn-outline btn-sm" onclick="openCancelSaleForm('${r.id}')">ยกเลิก</button>`:''}
             ${r.cancelled?`<button class="btn btn-ghost btn-sm" onclick="uncancelSale('${r.id}')" title="ยกเลิกการยกเลิก">คืนสถานะ</button>`:''}
-            ${(CURRENT.role==='admin' || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
+            ${((CURRENT.role==='admin'||CURRENT.role==='supervisor') || (r.employeeId===CURRENT.id && isWithinEditWindow(r.date)))?`<button class="btn btn-ghost btn-sm" onclick="deleteSale('${r.id}')">ลบ</button>`:''}
           </td>
         </tr>`;
       }).join('')}
     </tbody>
     <tfoot>
       <tr style="font-weight:700"><td colspan="3">💵 รวมเงินสดเท่านั้น</td><td style="text-align:right">${fmtMoney(cashOnlyTotal)}</td><td colspan="${isCredit?6:5}"></td></tr>
-      ${CURRENT.role==='admin'?`<tr style="font-weight:700"><td colspan="3">Σ รวมทุกยอด (Admin เท่านั้น)</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr>`:''}
+      ${(CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<tr style="font-weight:700"><td colspan="3">Σ รวมทุกยอด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr>`:''}
     </tfoot>
   </table></div>`;
 }
@@ -1168,7 +1175,7 @@ function printReport(containerId, isModal){
 }
 function openCombinedReport(){
   const date = getTab1FilterDate() || todayStr();
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const initialBranch = isAdmin ? (window.__t1branch || '') : (CURRENT.branch || '');
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} รายงาน${isAdmin?'รวม':''} (ทั่วไป + เครดิต)</div><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -1219,7 +1226,7 @@ function buildCombinedReportHtml(date, branchFilter){
   daySales = [...daySales].sort((a,b)=> (a.branch||'').localeCompare(b.branch||'','th') || a.no-b.no);
   const grand = daySales.reduce((a,b)=>a+Number(b.amount||0),0);
   const cashTotal = daySales.filter(s=>s.paymentType==='cash').reduce((a,b)=>a+Number(b.amount||0),0);
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const rowsHtml = daySales.map((r,i)=>{
     const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
     return `<tr>
@@ -1227,6 +1234,8 @@ function buildCombinedReportHtml(date, branchFilter){
       ${branchFilter?'':`<td>${escapeHtml(r.branch)}</td>`}
       <td>${r.customerType==='credit'?'เครดิต':'ทั่วไป'}</td>
       <td>${escapeHtml(r.customerName)}</td>
+      <td>${r.contactName?escapeHtml(r.contactName):'-'}</td>
+      <td>${r.contactPhone?escapeHtml(r.contactPhone):'-'}</td>
       <td>${escapeHtml(r.billNo)}</td>
       <td style="text-align:right">${fmtMoney(r.amount)}</td>
       <td>${pt?pt.icon+' '+pt.label:'-'}</td>
@@ -1238,12 +1247,12 @@ function buildCombinedReportHtml(date, branchFilter){
       <thead><tr>
         <th style="width:36px">ลำดับ</th>
         ${branchFilter?'':'<th>สาขา</th>'}
-        <th>ประเภทลูกค้า</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th><th>หมายเหตุ</th>
+        <th>ประเภทลูกค้า</th><th>ชื่อลูกค้า</th><th>ผู้ติดต่อ</th><th>เบอร์โทร</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ประเภทชำระ</th><th>หมายเหตุ</th>
       </tr></thead>
       <tbody>${rowsHtml}</tbody>
       <tfoot>
-        <tr style="font-weight:700"><td colspan="${branchFilter?4:5}">💵 รวมเงินสด</td><td style="text-align:right">฿ ${fmtMoney(cashTotal)}</td><td colspan="2"></td></tr>
-        ${isAdmin?`<tr style="font-weight:700"><td colspan="${branchFilter?4:5}">Σ รวมทุกยอด (Admin เท่านั้น)</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr>`:''}
+        <tr style="font-weight:700"><td colspan="${branchFilter?6:7}">💵 รวมเงินสด</td><td style="text-align:right">฿ ${fmtMoney(cashTotal)}</td><td colspan="2"></td></tr>
+        ${isAdmin?`<tr style="font-weight:700"><td colspan="${branchFilter?6:7}">Σ รวมทุกยอด</td><td style="text-align:right">฿ ${fmtMoney(grand)}</td><td colspan="2"></td></tr>`:''}
       </tfoot>
     </table></div>
   `;
@@ -1267,7 +1276,7 @@ function deleteSale(id){
   const idx = DB.sales.findIndex(s=>s.id===id);
   if(idx<0) return;
   const rec = DB.sales[idx];
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
   if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
@@ -1296,6 +1305,8 @@ function openSaleForm(prefill, editRecord){
         <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${noValue}"></div>
         <div class="field"><label>วันที่บันทึก</label><input type="date" id="fDate" value="${date}" ${CURRENT.role!=='admin'?'min="'+todayStr()+'"':''} oninput="document.getElementById('fDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="fDateCap">${formatDDMMYYYY(date)}</span></div>
         <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="fCustomer" placeholder="ชื่อลูกค้า" value="${escapeHtml(e?e.customerName:(prefill.customerName||''))}"></div>
+        <div class="field"><label>ชื่อผู้ติดต่อ <span class="helper-text" style="margin:0;display:inline">(ไม่บังคับ)</span></label><input type="text" id="fContactName" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.contactName||''):'')}"></div>
+        <div class="field"><label>เบอร์โทร <span class="helper-text" style="margin:0;display:inline">(ไม่บังคับ)</span></label><input type="tel" id="fContactPhone" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.contactPhone||''):'')}"></div>
         <div class="field"><label>เลขที่บิล</label><input type="text" id="fBill" placeholder="เช่น HS0001 / IV0002" value="${escapeHtml(e?e.billNo:(prefill.billNo||''))}"></div>
         <div class="field" style="display:flex;align-items:flex-end;padding-bottom:11px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
@@ -1316,7 +1327,7 @@ function openSaleForm(prefill, editRecord){
         </div>
         ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30" value="${e&&e.creditDays?e.creditDays:''}"></div>`:''}
         <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.note||''):(prefill.billNo?'ชำระแยกช่องทาง':''))}"></div>
-        ${CURRENT.role==='admin'?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา" value="${escapeHtml(e?e.branch:'')}"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
+        ${(CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา" value="${escapeHtml(e?e.branch:'')}"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
       </div>
     </div>
     <div class="modal-footer">
@@ -1337,12 +1348,14 @@ function collectSaleForm(){
     no: Number(document.getElementById('fNo').value)||1,
     date: document.getElementById('fDate').value || todayStr(),
     customerName: document.getElementById('fCustomer').value.trim(),
+    contactName: document.getElementById('fContactName') ? document.getElementById('fContactName').value.trim() : '',
+    contactPhone: document.getElementById('fContactPhone') ? document.getElementById('fContactPhone').value.trim() : '',
     billNo: document.getElementById('fBill').value.trim(),
     amount: Number(document.getElementById('fAmount').value)||0,
     paymentType: window.__selectedPayType,
     bank: (window.__selectedPayType==='transfer'||window.__selectedPayType==='deposit') ? document.getElementById('fBank').value : '',
     note: document.getElementById('fNote').value.trim(),
-    branch: CURRENT.role==='admin' ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
+    branch: (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
     creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
     pinkBill: document.getElementById('fPinkBill') ? document.getElementById('fPinkBill').checked : false,
   };
@@ -1377,6 +1390,8 @@ function previewSale(){
         <div class="preview-row"><span class="k">ลำดับที่</span><span class="v">${f.no}</span></div>
         <div class="preview-row"><span class="k">วันที่</span><span class="v">${fmtDate(f.date)}</span></div>
         <div class="preview-row"><span class="k">ชื่อลูกค้า</span><span class="v">${escapeHtml(f.customerName)}</span></div>
+        ${f.contactName?`<div class="preview-row"><span class="k">ชื่อผู้ติดต่อ</span><span class="v">${escapeHtml(f.contactName)}</span></div>`:''}
+        ${f.contactPhone?`<div class="preview-row"><span class="k">เบอร์โทร</span><span class="v">${escapeHtml(f.contactPhone)}</span></div>`:''}
         <div class="preview-row"><span class="k">เลขที่บิล</span><span class="v">${escapeHtml(f.billNo)}</span></div>
         <div class="preview-row"><span class="k">ยอดเงิน</span><span class="v">฿ ${fmtMoney(f.amount)}</span></div>
         <div class="preview-row"><span class="k">ประเภทชำระ</span><span class="v">${pt.icon} ${pt.label}</span></div>
@@ -1407,7 +1422,7 @@ async function submitSale(){
     const idx = DB.sales.findIndex(s=>s.id===editId);
     if(idx<0){ toast('ไม่พบรายการนี้', true); return; }
     const existing = DB.sales[idx];
-    const isAdmin = CURRENT.role==='admin';
+    const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
     const isOwnToday = existing.employeeId===CURRENT.id && isWithinEditWindow(existing.date);
     if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
     const updated = Object.assign({}, existing, f);
@@ -1446,7 +1461,7 @@ async function submitSale(){
 function openCancelSaleForm(id){
   const rec = DB.sales.find(s=>s.id===id);
   if(!rec) return;
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
   if(!isAdmin && !isOwnToday){ toast('คุณยกเลิกได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   openModal(`
@@ -1490,7 +1505,7 @@ async function confirmCancelSale(id){
 async function uncancelSale(id){
   const rec = DB.sales.find(s=>s.id===id);
   if(!rec) return;
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
   if(!isAdmin && !isOwnToday){ toast('คุณคืนสถานะได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   if(!confirm('ยืนยันคืนสถานะรายการนี้ให้กลับมานับยอดตามปกติ?')) return;
@@ -1504,7 +1519,7 @@ async function uncancelSale(id){
 function editSale(id){
   const rec = DB.sales.find(s=>s.id===id);
   if(!rec) return;
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
   if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   TAB1_CUSTVIEW = rec.customerType;
@@ -1534,7 +1549,7 @@ function continueSplitPayment(){
 }
 
 function openCombinePinkBills(){
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const scopeSales = isAdmin ? DB.sales : DB.sales.filter(s=>sameBranch(s.branch, CURRENT.branch));
   const candidates = scopeSales.filter(s=>s.pinkBill && !s.combinedInto).sort((a,b)=>(a.date<b.date?1:-1) || a.no-b.no);
   openModal(`
@@ -1611,14 +1626,14 @@ async function confirmCombinePinkBills(){
 
 function renderTab2(){
   const date = getTab1FilterDateForTab2();
-  const myAccess = CURRENT.role==='admin' ? {HS:true,IV:true} : (CURRENT.hsre||{});
+  const myAccess = (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? {HS:true,IV:true} : (CURRENT.hsre||{});
   const availableViews = ['HS','IV'].filter(k=>myAccess[k]);
   if(!availableViews.length){
     return `<div class="card"><div class="empty-state">${peakIcon(26)}<div>คุณไม่มีสิทธิ์เข้าถึงข้อมูล HS หรือ IV</div></div></div>`;
   }
   if(!availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0];
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
-  const canManageCash = CURRENT.role==='accounting' || CURRENT.role==='admin';
+  const canManageCash = CURRENT.role==='accounting' || (CURRENT.role==='admin'||CURRENT.role==='supervisor');
 
   const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
@@ -1646,7 +1661,7 @@ function renderTab2(){
         <tbody>
           ${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
           ${manualRows.map(e=>{
-            const canEditThis = canManageCash && (CURRENT.role==='admin' || isWithinEditWindow(e.date));
+            const canEditThis = canManageCash && ((CURRENT.role==='admin'||CURRENT.role==='supervisor') || isWithinEditWindow(e.date));
             return `<tr>
             <td>${fmtDate(e.date)}</td><td>${escapeHtml(e.customerName)}</td>
             <td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(e.billNo)}</span></td>
@@ -1770,7 +1785,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
   if(!fromDate) fromDate = todayStr();
   if(!toDate) toDate = fromDate;
   if(toDate < fromDate){ const tmp = fromDate; fromDate = toDate; toDate = tmp; }
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const myAccess = isAdmin ? {HS:true,IV:true} : (CURRENT.hsre||{});
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const inRange = function(d){ return d>=fromDate && d<=toDate; };
@@ -1886,7 +1901,7 @@ function renderCheckTable(list, isHistory){
   return `<div class="table-wrap"><table>
     <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
     <tbody>${list.map(c=>{
-      const canEditDelete = CURRENT.role==='admin' || (c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived));
+      const canEditDelete = (CURRENT.role==='admin'||CURRENT.role==='supervisor') || (c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived));
       return `
       <tr>
         <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
@@ -1914,7 +1929,7 @@ function renderCheckTable(list, isHistory){
 async function deleteCheck(id){
   const c = DB.checks.find(x=>x.id===id);
   if(!c) return;
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived);
   if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   if(!confirm(`ยืนยันลบรายการเช็ค "${c.checkNo||''}" — ${escapeHtml(c.company||'')}? การลบนี้ไม่สามารถย้อนกลับได้`)) return;
@@ -2038,7 +2053,7 @@ function openCheckForm(editRecord){
 function editCheck(id){
   const rec = DB.checks.find(x=>x.id===id);
   if(!rec) return;
-  const isAdmin = CURRENT.role==='admin';
+  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.enteredBy===CURRENT.id && isWithinEditWindow(rec.dateReceived);
   if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะเช็คที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   openCheckForm(rec);
@@ -2275,8 +2290,8 @@ function renderSettings(){
         <div class="emp-row">
           <div class="emp-avatar">${u.name.slice(0,1).toUpperCase()}</div>
           <div class="emp-meta">
-            <div class="emp-name">${escapeHtml(u.name)} ${u.role==='admin'?'<span class="badge badge-hs">Admin</span>':''}${u.role==='accounting'?'<span class="badge badge-iv">บัญชี</span>':''}</div>
-            <div class="emp-sub">User ID: ${escapeHtml(u.id)} ${u.role==='staff'?'· '+escapeHtml(u.branch||'-'):''}</div>
+            <div class="emp-name">${escapeHtml(u.name)} ${u.role==='admin'?'<span class="badge badge-hs">Admin</span>':''}${u.role==='accounting'?'<span class="badge badge-iv">บัญชี</span>':''}${u.role==='supervisor'?'<span class="badge badge-status-deposited">หัวหน้า</span>':''}</div>
+            <div class="emp-sub">User ID: ${escapeHtml(u.id)} ${(u.role==='staff'||u.role==='supervisor')?'· '+escapeHtml(u.branch||'-'):''}</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="openUserForm('${u.id}')">แก้ไข</button>
           ${u.id!=='admin'&&u.id!==CURRENT.id?`<button class="btn btn-ghost btn-sm" onclick="deleteUser('${u.id}')">ลบ</button>`:''}
@@ -2310,7 +2325,7 @@ function renderSettings(){
       <button class="btn btn-primary btn-sm" id="syncCheckBtn" onclick="runSyncStatusCheck()">🔍 เช็คสถานะซิงค์ตอนนี้</button>
       <div id="syncCheckResult" style="margin-top:14px"></div>
     </div>` : ''}
-    ${CURRENT.role==='admin' ? `
+    ${(CURRENT.role==='admin'||CURRENT.role==='supervisor') ? `
     <div class="card settings-block">
       <div class="card-header"><div class="card-title">${peakIcon()} สำรองข้อมูล</div></div>
       <p class="helper-text" style="margin-top:0">ดาวน์โหลดสำเนาข้อมูลทั้งหมดในเครื่องนี้เก็บไว้เป็นไฟล์ — ป้องกันข้อมูลสูญหาย ใช้เปิดดูด้วย Excel/Google Sheets ได้</p>
@@ -2503,6 +2518,7 @@ function openUserForm(id){
         <div class="field"><label>บทบาท</label>
           <select id="uRole" onchange="toggleStaffFields()">
             <option value="staff" ${u&&u.role==='staff'?'selected':''}>พนักงาน</option>
+            <option value="supervisor" ${u&&u.role==='supervisor'?'selected':''}>หัวหน้า (สิทธิ์เท่าพนักงาน แต่แก้ไขย้อนหลังได้ไม่จำกัดวัน)</option>
             <option value="accounting" ${u&&u.role==='accounting'?'selected':''}>พนักงานบัญชี (เห็นเงินสด+เช็ค ทั้ง 2 สาขา)</option>
             <option value="admin" ${u&&u.role==='admin'?'selected':''}>ผู้ดูแลระบบ (Admin)</option>
           </select>
@@ -2559,9 +2575,10 @@ function exportChecksCSV(){
 
 function toggleStaffFields(){
   const role = document.getElementById('uRole').value;
-  document.getElementById('permBlockWrap').style.display = role==='staff' ? 'block' : 'none';
+  const isStaffLike = (role==='staff' || role==='supervisor');
+  document.getElementById('permBlockWrap').style.display = isStaffLike ? 'block' : 'none';
   document.getElementById('accountingNotice').style.display = role==='accounting' ? 'flex' : 'none';
-  document.getElementById('branchFieldWrap').style.display = role==='staff' ? 'block' : 'none';
+  document.getElementById('branchFieldWrap').style.display = isStaffLike ? 'block' : 'none';
 }
 async function saveUserForm(existingId){
   const id = document.getElementById('uId').value.trim();
@@ -2572,13 +2589,13 @@ async function saveUserForm(existingId){
   if(!existingId && DB.users.some(u=>u.id.toLowerCase()===id.toLowerCase())){ toast('User ID นี้มีอยู่แล้ว', true); return; }
   const rec = {
     id, name, pass, role,
-    branch: role==='staff' ? document.getElementById('uBranch').value.trim() : '',
-    tabs: role==='staff' ? {
+    branch: (role==='staff' || role==='supervisor') ? document.getElementById('uBranch').value.trim() : '',
+    tabs: (role==='staff' || role==='supervisor') ? {
       tab1: document.getElementById('pTab1').checked,
       tab2: document.getElementById('pTab2').checked,
       tab3: document.getElementById('pTab3').checked,
     } : role==='accounting' ? {tab1:false,tab2:true,tab3:true} : {tab1:true,tab2:true,tab3:true},
-    hsre: role==='staff' ? {
+    hsre: (role==='staff' || role==='supervisor') ? {
       HS: document.getElementById('pHS').checked,
       IV: document.getElementById('pIV').checked,
     } : {HS:true,IV:true},
