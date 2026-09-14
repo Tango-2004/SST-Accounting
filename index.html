@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260908-16';
+const APP_VERSION = 'sst-build-20260914-18';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1658,7 +1658,7 @@ function renderTab2(){
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
   const canManageCash = CURRENT.role==='accounting' || (CURRENT.role==='admin'||CURRENT.role==='supervisor');
 
-  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
   const total = rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
   const hasAny = rows.length || manualRows.length;
@@ -1813,7 +1813,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const inRange = function(d){ return d>=fromDate && d<=toDate; };
   const sectionsHtml = types.map(type=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(type) && !s.combinedInto);
+    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     const allRows = rows.concat(manualRows).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
     const subTotal = allRows.reduce((a,b)=>a+Number(b.amount||0),0);
@@ -1827,7 +1827,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
     `;
   }).join('');
   const grandTotal = types.reduce((sum,type)=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && s.billNo.toUpperCase().startsWith(type) && !s.combinedInto);
+    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     return sum + rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
