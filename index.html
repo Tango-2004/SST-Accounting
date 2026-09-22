@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260914-18';
+const APP_VERSION = 'sst-build-20260922-19';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -975,6 +975,22 @@ function renderShell(){
   });
   nav.innerHTML = html;
   renderContent();
+}
+function renderShellKeepFocus(){
+  const active = document.activeElement;
+  const id = active && active.id;
+  const selStart = (active && typeof active.selectionStart === 'number') ? active.selectionStart : null;
+  const selEnd = (active && typeof active.selectionEnd === 'number') ? active.selectionEnd : null;
+  renderShell();
+  if(id){
+    const el = document.getElementById(id);
+    if(el){
+      el.focus();
+      if(selStart!==null && el.setSelectionRange){
+        try{ el.setSelectionRange(selStart, selEnd); }catch(e){}
+      }
+    }
+  }
 }
 function setTab(id){
   ACTIVE_TAB = id;
@@ -1866,6 +1882,11 @@ function renderTab3(){
   window.__t3checkdate = checkDateFilter;
   if(checkDateFilter) rows = rows.filter(c=>c.checkDate===checkDateFilter);
 
+  const checkNoEl = document.getElementById('t3CheckNo');
+  const checkNoFilter = checkNoEl ? checkNoEl.value : (window.__t3checkno||'');
+  window.__t3checkno = checkNoFilter;
+  if(checkNoFilter.trim()) rows = rows.filter(c=>String(c.checkNo||'').toLowerCase().includes(checkNoFilter.trim().toLowerCase()));
+
   rows = [...rows].sort((a,b)=>{
     const cmp = (a.checkDate||'').localeCompare(b.checkDate||'');
     return CHECK_SORT_ASC ? cmp : -cmp;
@@ -1891,6 +1912,9 @@ function renderTab3(){
       <label>กรองตามวันที่ในเช็ค</label>
       <input type="date" id="t3CheckDate" value="${checkDateFilter}" onchange="renderShell()">
       ${checkDateFilter?`<button class="btn btn-ghost btn-sm" onclick="window.__t3checkdate='';renderShell()">ล้าง</button>`:''}
+      <label>ค้นหาเลขที่เช็ค</label>
+      <input type="text" id="t3CheckNo" placeholder="พิมพ์เลขที่เช็ค..." value="${escapeHtml(checkNoFilter)}" oninput="renderShellKeepFocus()" style="min-width:160px">
+      ${checkNoFilter?`<button class="btn btn-ghost btn-sm" onclick="window.__t3checkno='';renderShell()">ล้าง</button>`:''}
       <label>เรียงตามวันที่ในเช็ค</label>
       <button class="btn btn-outline btn-sm" onclick="CHECK_SORT_ASC=!CHECK_SORT_ASC;renderShell()">${CHECK_SORT_ASC?'⬆ ใกล้ครบกำหนดก่อน':'⬇ ไกลครบกำหนดก่อน'}</button>
       ${historyDateFilterBar}
