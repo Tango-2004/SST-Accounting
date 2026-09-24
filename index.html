@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260922-19';
+const APP_VERSION = 'sst-build-20260924-22';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1991,6 +1991,11 @@ async function deleteCheck(id){
   renderShell();
   toast('ลบรายการเช็คแล้ว');
 }
+function driveFileIdFromUrl(url){
+  if(!url) return null;
+  const m = String(url).match(/\/d\/([^/]+)/) || String(url).match(/[?&]id=([^&]+)/);
+  return m ? m[1] : null;
+}
 async function viewCheckImage(id){
   const c = DB.checks.find(x=>x.id===id);
   if(!c) return;
@@ -2011,8 +2016,17 @@ async function viewCheckImage(id){
   if(!full) full = lsGet('sst_checkimg_'+id);
   const body = document.getElementById('checkImgModalBody');
   if(!body) return;
+  const driveFileId = driveFileIdFromUrl(c.driveUrl);
+  const driveEmbedUrl = driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w2000` : null;
   if(full){
+    // มีรูปเต็มในเครื่องอยู่แล้ว — ใช้อันนี้ชัดสุดและเร็วสุด
     body.innerHTML = `<img src="${full}" style="max-width:100%;border-radius:8px">${c.driveUrl?`<div class="helper-text"><a href="${c.driveUrl}" target="_blank">เปิดใน Google Drive ↗</a></div>`:''}`;
+  } else if(driveEmbedUrl){
+    // ไม่มีรูปเต็มในเครื่อง (อัปโหลดขึ้น Drive แล้ว) — โหลดรูปชัดจาก Drive มาแสดงตรงนี้เลย
+    body.innerHTML = `
+      <img src="${driveEmbedUrl}" style="max-width:100%;border-radius:8px" onerror="this.onerror=null;this.src='${c.thumb||''}';this.style.opacity='0.6';document.getElementById('checkImgFallbackNote')?.style.removeProperty('display');">
+      <div id="checkImgFallbackNote" class="helper-text" style="display:none">โหลดรูปชัดจาก Drive ไม่สำเร็จ แสดงรูปย่อแทน</div>
+      <div class="helper-text"><a href="${c.driveUrl}" target="_blank">เปิดใน Google Drive ↗</a></div>`;
   } else if(c.thumb){
     body.innerHTML = `<img src="${c.thumb}" style="max-width:100%;border-radius:8px"><div class="helper-text">แสดงเฉพาะรูปย่อ (ไม่พบรูปขนาดเต็มในระบบ)</div>`;
   } else {
@@ -2024,10 +2038,25 @@ async function markDeposited(id){
   c.status='deposited'; c.depositedDate = todayStr();
   await saveChecks(); pushCheckUpsert(c); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
 }
-async function markCleared(id){
+function markCleared(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
-  c.status='cleared'; c.clearedDate = todayStr();
-  await saveChecks(); pushCheckUpsert(c); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ผ่านเช็ค — ${escapeHtml(c.checkNo)}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>วันที่ผ่านเช็ค</label><input type="date" id="mcClearedDate" value="${todayStr()}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="confirmMarkCleared('${id}')">ยืนยันผ่านเช็ค</button>
+    </div>
+  `);
+}
+async function confirmMarkCleared(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  const dateEl = document.getElementById('mcClearedDate');
+  const chosenDate = (dateEl && dateEl.value) ? dateEl.value : todayStr();
+  c.status='cleared'; c.clearedDate = chosenDate;
+  await saveChecks(); pushCheckUpsert(c); closeModal(); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
 }
 function returnCheck(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
@@ -2113,11 +2142,11 @@ function handleCheckImage(ev){
     const img = new Image();
     img.onload = function(){
       const fullCanvas = document.createElement('canvas');
-      const fullMaxW = 900;
+      const fullMaxW = 1600;
       const fullScale = Math.min(1, fullMaxW/img.width);
       fullCanvas.width = img.width*fullScale; fullCanvas.height = img.height*fullScale;
       fullCanvas.getContext('2d').drawImage(img,0,0,fullCanvas.width,fullCanvas.height);
-      window.__uploadedCheckImgFull = fullCanvas.toDataURL('image/jpeg', 0.75);
+      window.__uploadedCheckImgFull = fullCanvas.toDataURL('image/jpeg', 0.85);
 
       const thumbCanvas = document.createElement('canvas');
       const thumbMaxW = 140;
@@ -2301,7 +2330,7 @@ function openCalDay(dateStr){
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${c.status==='pending_deposit'?`<button class="btn btn-outline btn-sm" onclick="markDeposited('${c.id}');closeModal();openCalDay('${dateStr}')">✓ นำเข้าธนาคารแล้ว</button>`:''}
-            ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}');closeModal()">✓ ผ่านเช็คแล้ว</button>`:''}
+            ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}')">✓ ผ่านเช็คแล้ว</button>`:''}
           </div>
         </div>`;
       }).join('') : `<div class="empty-state">${peakIcon(22)}<div>ไม่มีเช็คครบกำหนดวันนี้</div></div>`}
