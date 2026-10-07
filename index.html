@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20260924-22';
+const APP_VERSION = 'sst-build-20261007-23';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1181,7 +1181,7 @@ function renderTab1Table(){
           <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
-          <td>${r.bank?escapeHtml(r.bank):'-'}</td>
+          <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><a class="no-print" href="${escapeHtml(r.slipUrl)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน</a>`:''}</td>
           ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td>`:''}
           <td>${r.cancelled?`<b>เหตุผลยกเลิก:</b> ${escapeHtml(r.cancelReason||'-')}`:(r.note?escapeHtml(r.note):'-')}</td>
           <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
@@ -1330,6 +1330,8 @@ function openSaleForm(prefill, editRecord){
   const e = editRecord || null;
   window.__selectedPayType = e ? e.paymentType : null;
   window.__editingSaleId = e ? e.id : null;
+  if(!window.__keepSlip) window.__slipDataUrl = null;
+  window.__keepSlip = false;
   const date = e ? e.date : (getTab1FilterDate() || todayStr());
   if(!e && CURRENT.role!=='admin' && date < todayStr()){
     toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
@@ -1364,6 +1366,14 @@ function openSaleForm(prefill, editRecord){
         <div class="field" id="bankField" style="display:${e&&(e.paymentType==='transfer'||e.paymentType==='deposit')?'block':'none'}"><label>ธนาคาร</label>
           <select id="fBank"><option value="">เลือกธนาคาร</option>${BANKS.map(b=>`<option value="${b}" ${e&&e.bank===b?'selected':''}>${b}</option>`).join('')}</select>
         </div>
+        <div class="field full" id="slipField" style="display:${e&&e.paymentType==='transfer'?'block':(window.__selectedPayType==='transfer'?'block':'none')}">
+          <label>รูปใบโอน ${(e&&(e.slipUrl||e.paymentType==='transfer'))?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
+          <div class="upload-box ${window.__slipDataUrl?'has-image':''}" id="slipUploadBox" onclick="document.getElementById('slipFileInput').click()">
+            ${window.__slipDataUrl?`<img src="${window.__slipDataUrl}">`:'📎 คลิกเพื่อแนบรูปใบโอน'}
+          </div>
+          ${e&&e.slipUrl?`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว (<a href="${escapeHtml(e.slipUrl)}" target="_blank">เปิดดู ↗</a>) — เลือกรูปใหม่เฉพาะถ้าต้องการเปลี่ยน</p>`:''}
+          <input type="file" id="slipFileInput" accept="image/*" style="display:none" onchange="handleSlipImage(event)">
+        </div>
         ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30" value="${e&&e.creditDays?e.creditDays:''}"></div>`:''}
         <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.note||''):(prefill.billNo?'ชำระแยกช่องทาง':''))}"></div>
         ${(CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา" value="${escapeHtml(e?e.branch:'')}"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
@@ -1381,6 +1391,57 @@ function selectPayType(id){
   window.__selectedPayType = id;
   document.querySelectorAll('.pay-opt').forEach(el=>el.classList.toggle('selected', el.dataset.id===id));
   document.getElementById('bankField').style.display = (id==='transfer'||id==='deposit') ? 'block' : 'none';
+  const sf = document.getElementById('slipField');
+  if(sf) sf.style.display = (id==='transfer') ? 'block' : 'none';
+}
+function handleSlipImage(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const c = document.createElement('canvas');
+      const scale = Math.min(1, 1600/img.width);
+      c.width = img.width*scale; c.height = img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      window.__slipDataUrl = c.toDataURL('image/jpeg', 0.85);
+      const box = document.getElementById('slipUploadBox');
+      if(box){ box.classList.add('has-image'); box.innerHTML = `<img src="${window.__slipDataUrl}">`; }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+// อัปโหลดใบโอนขึ้น Drive หลังบันทึกรายการแล้ว (ไม่เก็บรูปในเครื่อง ไม่บล็อกการบันทึก)
+async function uploadSlipForSale(rec, dataUrl){
+  if(!APPS_SCRIPT_URL || !dataUrl) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({ action:'saveSlipImage', data:{
+        base64: dataUrl.split(',')[1],
+        filename: (rec.billNo||'slip')+'_'+rec.id+'.jpg',
+        date: rec.date,
+        monthYearThai: thaiMonthYearFolder(rec.date)
+      }})
+    });
+    const json = await res.json();
+    if(json && json.ok && json.url){
+      const cur = DB.sales.find(x=>x.id===rec.id);
+      if(cur){
+        cur.slipUrl = json.url;
+        await saveSales();
+        await pushSaleUpsert(cur);
+        renderShell();
+      }
+    } else {
+      throw new Error((json&&json.error)||'unknown');
+    }
+  }catch(e){
+    console.error('uploadSlipForSale failed', e);
+    toast('บันทึกรายการแล้ว แต่ใบโอนยังอัปโหลดไม่สำเร็จ — กด "แก้ไข" ที่รายการนี้แล้วแนบรูปใบโอนอีกครั้ง', true);
+  }
 }
 function collectSaleForm(){
   return {
@@ -1405,6 +1466,11 @@ function validateSale(f){
   if(!f.amount || f.amount<=0) return {msg:'กรุณากรอกยอดเงินให้ถูกต้อง', field:'fAmount'};
   if(!f.paymentType) return {msg:'กรุณาเลือกประเภทการชำระเงิน', field:'payOptions'};
   if(f.paymentType==='transfer' && !f.bank) return {msg:'กรุณาเลือกธนาคาร', field:'fBank'};
+  if(f.paymentType==='transfer' && !window.__slipDataUrl){
+    const ex = window.__editingSaleId ? DB.sales.find(x=>x.id===window.__editingSaleId) : null;
+    const slipOptional = ex && (ex.slipUrl || ex.paymentType==='transfer');
+    if(!slipOptional) return {msg:'กรุณาแนบรูปใบโอน', field:'slipUploadBox'};
+  }
   return null;
 }
 function flagInvalidField(id){
@@ -1435,13 +1501,14 @@ function previewSale(){
         <div class="preview-row"><span class="k">ยอดเงิน</span><span class="v">฿ ${fmtMoney(f.amount)}</span></div>
         <div class="preview-row"><span class="k">ประเภทชำระ</span><span class="v">${pt.icon} ${pt.label}</span></div>
         ${f.bank?`<div class="preview-row"><span class="k">ธนาคาร</span><span class="v">${f.bank}</span></div>`:''}
+        ${(f.paymentType==='transfer'&&window.__slipDataUrl)?`<div class="preview-row"><span class="k">ใบโอน</span><span class="v">📎 แนบรูปแล้ว</span></div>`:''}
         ${f.creditDays?`<div class="preview-row"><span class="k">เครดิต</span><span class="v">${f.creditDays} วัน</span></div>`:''}
         <div class="preview-row"><span class="k">หมายเหตุ</span><span class="v">${escapeHtml(f.note)||'-'}</span></div>
         <div class="preview-row"><span class="k">สาขา</span><span class="v">${escapeHtml(f.branch)}</span></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="${window.__editingSaleId?`reopenEditSaleForm()`:`openSaleForm()`}">แก้ไข</button>
+      <button class="btn btn-outline" onclick="window.__keepSlip=true;${window.__editingSaleId?`reopenEditSaleForm()`:`openSaleForm()`}">แก้ไข</button>
       <button class="btn btn-primary" onclick="submitSale()">ยืนยันบันทึก</button>
     </div>
   `);
@@ -1478,7 +1545,9 @@ async function submitSale(){
     closeModal();
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
-    pushSaleUpsert(updated);
+    const slipToUpload = (updated.paymentType==='transfer') ? window.__slipDataUrl : null;
+    window.__slipDataUrl = null;
+    pushSaleUpsert(updated).then(()=>{ if(slipToUpload) uploadSlipForSale(updated, slipToUpload); });
     return;
   }
 
@@ -1494,7 +1563,9 @@ async function submitSale(){
   }
   renderShell();
   toast('บันทึกรายการเรียบร้อย');
-  pushSaleUpsert(rec);
+  const slipToUpload = (rec.paymentType==='transfer') ? window.__slipDataUrl : null;
+  window.__slipDataUrl = null;
+  pushSaleUpsert(rec).then(()=>{ if(slipToUpload) uploadSlipForSale(rec, slipToUpload); });
   askSplitPayment(rec);
 }
 function openCancelSaleForm(id){
