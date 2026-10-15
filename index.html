@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261015-27';
+const APP_VERSION = 'sst-build-20261015-29';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1175,7 +1175,7 @@ function renderTab1Table(){
     <tbody>
       ${rows.map(r=>{
         const pt = PAY_TYPES.find(p=>p.id===r.paymentType);
-        return `<tr${r.cancelled?' style="opacity:0.6"':''}>
+        return `<tr${r.cancelled?' class="no-print" style="opacity:0.6"':''}>
           <td>${r.no}</td>
           <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}${(r.contactName||r.contactPhone)?`<br><span class="helper-text" style="margin:0">${r.contactName?escapeHtml(r.contactName):''}${r.contactName&&r.contactPhone?' · ':''}${r.contactPhone?escapeHtml(r.contactPhone):''}</span>`:''}</td>
           <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
@@ -1312,18 +1312,8 @@ function renderMiniSalesTable(rows, label){
   </div>`;
 }
 function deleteSale(id){
-  const idx = DB.sales.findIndex(s=>s.id===id);
-  if(idx<0) return;
-  const rec = DB.sales[idx];
-  const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
-  const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
-  if(!isAdmin && !isOwnToday){ toast('คุณลบได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
-  if(!confirm('ยืนยันลบรายการนี้?')) return;
-  DB.sales.splice(idx,1);
-  saveSales();
-  pushSaleDelete(id);
-  renderShell();
-  toast('ลบรายการแล้ว');
+  // การลบต้องระบุเหตุผล — รายการจะถูกบันทึกเป็น "ลบ/ยกเลิก" พร้อมเหตุผล (ไม่หายไปเงียบๆ) เพื่อให้บัญชีเห็นว่าลบเพราะอะไร
+  openCancelSaleForm(id, 'delete');
 }
 function openSaleForm(prefill, editRecord){
   prefill = prefill || {};
@@ -1698,25 +1688,26 @@ async function submitSale(){
   if(makeCheckNew) createCheckFromSale(rec, chkIn, saleCheckFull, saleCheckThumb);
   askSplitPayment(rec);
 }
-function openCancelSaleForm(id){
+function openCancelSaleForm(id, mode){
+  const isDel = mode==='delete';
   const rec = DB.sales.find(s=>s.id===id);
   if(!rec) return;
   const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   const isOwnToday = rec.employeeId===CURRENT.id && isWithinEditWindow(rec.date);
   if(!isAdmin && !isOwnToday){ toast('คุณยกเลิกได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} ยกเลิกรายการ</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${isDel?'ลบรายการ':'ยกเลิกรายการ'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
       <p style="margin-top:0">บิลเลขที่ <b>${escapeHtml(rec.billNo)}</b> ของ <b>${escapeHtml(rec.customerName)}</b> — ฿${fmtMoney(rec.amount)}</p>
-      <p class="helper-text" style="margin-top:0">รายการนี้จะยังแสดงอยู่ในตาราง (มีเครื่องหมายยกเลิกกำกับ) แต่จะ<b>ไม่ถูกนำมารวมยอด</b>อีกต่อไป — ต่างจากการลบที่จะหายไปเลย</p>
+      <p class="helper-text" style="margin-top:0">${isDel?'เมื่อลบ รายการนี้จะ':'รายการนี้จะ'}ยังแสดงอยู่ในตาราง (มีเครื่องหมายกำกับพร้อมเหตุผล) และบัญชีจะเห็นเหตุผลในหน้ายอดรวมเงินสด (HS/IV) แต่จะ<b>ไม่ถูกนำมารวมยอด</b>อีกต่อไป</p>
       <div class="field full">
-        <label>เหตุผลที่ยกเลิก <span style="color:var(--red)">*</span></label>
+        <label>เหตุผลที่${isDel?'ลบ':'ยกเลิก'} <span style="color:var(--red)">*</span></label>
         <textarea id="cancelReasonInput" rows="3" placeholder="เช่น ลูกค้ายกเลิกบิล, บันทึกผิดยอด, สินค้าคืน ฯลฯ"></textarea>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-      <button class="btn btn-primary" onclick="confirmCancelSale('${id}')">ยืนยันยกเลิก</button>
+      <button class="btn btn-primary" onclick="confirmCancelSale('${id}')">${isDel?'ยืนยันลบ':'ยืนยันยกเลิก'}</button>
     </div>
   `);
 }
@@ -1864,6 +1855,10 @@ async function confirmCombinePinkBills(){
   sourceRecs.forEach(s=>{ pushSaleUpsert(s); });
 }
 
+function cancelNote(r){
+  if(!r || !r.cancelled) return '';
+  return `<br><span class="badge badge-unpaid" style="font-size:10px">✕ ลบ/ยกเลิกแล้ว</span> <span class="helper-text" style="margin:0">เหตุผล: ${escapeHtml(r.cancelReason||'-')}${r.cancelledBy?' · โดย '+escapeHtml(r.cancelledBy):''}</span>`;
+}
 function renderTab2(){
   const date = getTab1FilterDateForTab2();
   const myAccess = (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? {HS:true,IV:true} : (CURRENT.hsre||{});
@@ -1877,7 +1872,7 @@ function renderTab2(){
 
   const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
-  const total = rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
+  const total = rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   const hasAny = rows.length || manualRows.length;
 
   return `
@@ -1899,16 +1894,17 @@ function renderTab2(){
       ${hasAny? `<div class="table-wrap"><table>
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th>${canManageCash?'<th class="no-print"></th>':''}</tr></thead>
         <tbody>
-          ${rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
+          ${rows.map(r=>`<tr${r.cancelled?' class="no-print" style="opacity:0.65"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
           ${manualRows.map(e=>{
             const canEditThis = canManageCash && ((CURRENT.role==='admin'||CURRENT.role==='supervisor') || isWithinEditWindow(e.date));
-            return `<tr>
-            <td>${fmtDate(e.date)}</td><td>${escapeHtml(e.customerName)}</td>
+            return `<tr${e.cancelled?' class="no-print" style="opacity:0.65"':''}>
+            <td>${fmtDate(e.date)}</td><td>${escapeHtml(e.customerName)}${cancelNote(e)}</td>
             <td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(e.billNo)}</span></td>
-            <td style="text-align:right">${fmtMoney(e.amount)}</td><td>${e.bank||'เงินสด'}</td>
+            <td style="text-align:right;${e.cancelled?'text-decoration:line-through':''}">${fmtMoney(e.amount)}</td><td>${e.bank||'เงินสด'}</td>
             ${canManageCash?`<td class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">
-              ${canEditThis?`<button class="btn btn-outline btn-sm" onclick="openCashEntryForm(${JSON.stringify(e).replace(/"/g,'&quot;')})">แก้ไข</button>
+              ${canEditThis && !e.cancelled?`<button class="btn btn-outline btn-sm" onclick="openCashEntryForm(${JSON.stringify(e).replace(/"/g,'&quot;')})">แก้ไข</button>
               <button class="btn btn-ghost btn-sm" onclick="deleteCashEntry('${e.id}')">ลบ</button>`:''}
+              ${canEditThis && e.cancelled?`<button class="btn btn-ghost btn-sm" onclick="restoreCashEntry('${e.id}')">คืนสถานะ</button>`:''}
             </td>`:''}
           </tr>`;
           }).join('')}
@@ -1978,19 +1974,50 @@ async function submitCashEntry(){
   closeModal(); renderShell();
   toast('บันทึกรายการเรียบร้อย');
 }
-async function deleteCashEntry(id){
-  const idx = DB.cashEntries.findIndex(x=>x.id===id);
-  if(idx<0) return;
-  const rec = DB.cashEntries[idx];
+function deleteCashEntry(id){
+  const rec = DB.cashEntries.find(x=>x.id===id);
+  if(!rec) return;
   if(CURRENT.role!=='admin' && !isWithinEditWindow(rec.date)){ toast('ลบได้เฉพาะรายการวันนี้หรือเมื่อวานเท่านั้น', true); return; }
-  if(!confirm('ยืนยันลบรายการนี้?')) return;
-  const removed = DB.cashEntries[idx];
-  DB.cashEntries.splice(idx,1);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ลบรายการ</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="margin-top:0">บิลเลขที่ <b>${escapeHtml(rec.billNo)}</b> ของ <b>${escapeHtml(rec.customerName)}</b> — ฿${fmtMoney(rec.amount)}</p>
+      <p class="helper-text" style="margin-top:0">รายการนี้จะยังแสดงอยู่ในตาราง (มีเครื่องหมายลบพร้อมเหตุผลกำกับ) แต่จะ<b>ไม่ถูกนำมารวมยอด</b>อีกต่อไป</p>
+      <div class="field full">
+        <label>เหตุผลที่ลบ <span style="color:var(--red)">*</span></label>
+        <textarea id="ceDeleteReason" rows="3" placeholder="เช่น บันทึกซ้ำ, ยอดผิด, ลูกค้ายกเลิก ฯลฯ"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="confirmDeleteCashEntry('${id}')">ยืนยันลบ</button>
+    </div>
+  `);
+}
+async function confirmDeleteCashEntry(id){
+  const reason = (document.getElementById('ceDeleteReason')||{value:''}).value.trim();
+  if(!reason){ toast('กรุณาระบุเหตุผลที่ลบ', true); flagInvalidField('ceDeleteReason'); return; }
+  const rec = DB.cashEntries.find(x=>x.id===id);
+  if(!rec) return;
+  const before = { cancelled: rec.cancelled, cancelReason: rec.cancelReason, cancelledBy: rec.cancelledBy, cancelledAt: rec.cancelledAt };
+  rec.cancelled = true; rec.cancelReason = reason; rec.cancelledBy = CURRENT.name; rec.cancelledAt = Date.now();
   try{ await saveCashEntries(); }
-  catch(e){ DB.cashEntries.splice(idx,0,removed); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
-  pushCashEntryDelete(id);
+  catch(e){ Object.assign(rec, before); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCashEntryUpsert(rec);
+  closeModal(); renderShell();
+  toast('ลบรายการแล้ว — บันทึกเหตุผลไว้ และไม่ถูกนำมารวมยอด');
+}
+async function restoreCashEntry(id){
+  const rec = DB.cashEntries.find(x=>x.id===id);
+  if(!rec) return;
+  if(CURRENT.role!=='admin' && !isWithinEditWindow(rec.date)){ toast('คืนสถานะได้เฉพาะรายการวันนี้หรือเมื่อวานเท่านั้น', true); return; }
+  if(!confirm('ยืนยันคืนสถานะรายการนี้ให้กลับมานับยอดตามปกติ?')) return;
+  rec.cancelled = false; rec.cancelReason = '';
+  try{ await saveCashEntries(); }
+  catch(e){ toast('คืนสถานะไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCashEntryUpsert(rec);
   renderShell();
-  toast('ลบรายการแล้ว');
+  toast('คืนสถานะรายการแล้ว');
 }
 function getTab1FilterDateForTab2(){
   const el = document.getElementById('t2Date');
@@ -2032,13 +2059,13 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const sectionsHtml = types.map(type=>{
     const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
-    const allRows = rows.concat(manualRows).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
-    const subTotal = allRows.reduce((a,b)=>a+Number(b.amount||0),0);
+    const allRows = rows.concat(manualRows).filter(r=>!r.cancelled).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    const subTotal = allRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
     return `
       <h3 style="font-family:'Kanit';margin:14px 0 6px">${type}</h3>
       <div class="table-wrap"><table class="report-table">
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
-        <tbody>${allRows.length ? allRows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
+        <tbody>${allRows.length ? allRows.map(r=>`<tr${r.cancelled?' style="opacity:0.7"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
         <tfoot><tr style="font-weight:700"><td colspan="3">รวม ${type}</td><td style="text-align:right">${fmtMoney(subTotal)}</td><td></td></tr></tfoot>
       </table></div>
     `;
@@ -2046,7 +2073,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const grandTotal = types.reduce((sum,type)=>{
     const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
-    return sum + rows.reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.reduce((a,b)=>a+Number(b.amount||0),0);
+    return sum + rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
   const rangeLabel = fromDate===toDate ? fmtDate(fromDate) : (fmtDate(fromDate)+' – '+fmtDate(toDate));
   return `
