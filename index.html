@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261008-25';
+const APP_VERSION = 'sst-build-20261015-27';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1181,7 +1181,7 @@ function renderTab1Table(){
           <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
-          <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><a class="no-print" href="${escapeHtml(r.slipUrl)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน</a>`:''}</td>
+          <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><span class="no-print">${slipUrlList(r.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน${arr.length>1?' '+(i+1):''}</a>`).join(' ')}</span>`:''}${r.checkId?`<br><span class="no-print helper-text" style="margin:0">🧾 เข้าหน้าเช็คแล้ว</span>`:''}</td>
           ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td>`:''}
           <td>${r.cancelled?`<b>เหตุผลยกเลิก:</b> ${escapeHtml(r.cancelReason||'-')}`:(r.note?escapeHtml(r.note):'-')}</td>
           <td>${escapeHtml(r.branch)}<br><span class="helper-text" style="margin:0">${escapeHtml(r.employeeName)}</span></td>
@@ -1330,7 +1330,8 @@ function openSaleForm(prefill, editRecord){
   const e = editRecord || null;
   window.__selectedPayType = e ? e.paymentType : null;
   window.__editingSaleId = e ? e.id : null;
-  if(!window.__keepSlip) window.__slipDataUrl = null;
+  const keepAttachments = !!window.__keepSlip;
+  if(!keepAttachments){ window.__slipImages = []; window.__saleCheckFull = null; window.__saleCheckThumb = null; }
   window.__keepSlip = false;
   const date = e ? e.date : (getTab1FilterDate() || todayStr());
   if(!e && CURRENT.role!=='admin' && date < todayStr()){
@@ -1368,16 +1369,27 @@ function openSaleForm(prefill, editRecord){
         </div>
         <div class="field" id="depositMethodField" style="display:${window.__selectedPayType==='deposit'?'block':'none'}"><label>ชำระมัดจำด้วย ${(e&&e.paymentType==='deposit'&&!e.depositMethod)?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
           <select id="fDepositMethod" onchange="refreshSlipVisibility()"><option value="">เลือกวิธีชำระ</option><option value="cash" ${e&&e.depositMethod==='cash'?'selected':''}>เงินสด</option><option value="transfer" ${e&&e.depositMethod==='transfer'?'selected':''}>โอนจ่าย</option><option value="check" ${e&&e.depositMethod==='check'?'selected':''}>เช็ค</option><option value="credit_card" ${e&&e.depositMethod==='credit_card'?'selected':''}>บัตรเครดิต</option></select>
-          <span class="helper-text" id="depositCheckHint" style="display:none">ถ้ามัดจำด้วยเช็ค อย่าลืมบันทึกเช็คใบนี้ในหน้า "เช็ครับลูกหนี้" ด้วย</span>
         </div>
         <div class="field full" id="slipField" style="display:${needsSlip(window.__selectedPayType, e?e.depositMethod:'')?'block':'none'}">
-          <label>รูปใบโอน ${(e&&(e.slipUrl||needsSlip(e.paymentType,e.depositMethod)))?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
-          <div class="upload-box ${window.__slipDataUrl?'has-image':''}" id="slipUploadBox" onclick="document.getElementById('slipFileInput').click()">
-            ${window.__slipDataUrl?`<img src="${window.__slipDataUrl}">`:'📎 คลิกเพื่อแนบรูปใบโอน'}
-          </div>
-          ${e&&e.slipUrl?`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว (<a href="${escapeHtml(e.slipUrl)}" target="_blank">เปิดดู ↗</a>) — เลือกรูปใหม่เฉพาะถ้าต้องการเปลี่ยน</p>`:''}
-          <input type="file" id="slipFileInput" accept="image/*" style="display:none" onchange="handleSlipImage(event)">
+          <label>รูปใบโอน (แนบได้หลายรูป) ${(e&&(e.slipUrl||needsSlip(e.paymentType,e.depositMethod)))?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
+          <div id="slipUploadBox" style="border:1.5px dashed var(--border);border-radius:10px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">${slipBoxHtml()}</div>
+          ${e&&e.slipUrl?`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว: ${slipUrlList(e.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a>`).join(' · ')} — รูปที่เลือกเพิ่มจะถูกเพิ่มต่อจากของเดิม</p>`:''}
+          <input type="file" id="slipFileInput" accept="image/*" multiple style="display:none" onchange="handleSlipImage(event)">
         </div>
+        ${(e&&e.checkId&&needsCheckEntry(e.paymentType,e.depositMethod))?`<div class="field full"><div class="locked-notice">${peakIcon(13)} รายการนี้บันทึกเช็คเข้าหน้า "เช็ครับลูกหนี้" แล้ว — ถ้าจะแก้ข้อมูลเช็ค ให้แก้ที่หน้านั้น</div></div>`:`
+        <div class="field full" id="saleCheckBlock" style="display:${needsCheckEntry(window.__selectedPayType, e?e.depositMethod:'')?'block':'none'};border:1.5px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-weight:600;margin-bottom:8px">🧾 ข้อมูลเช็ค <span class="helper-text" style="margin:0;display:inline">(จะเข้าไปอยู่ในหน้า "เช็ครับลูกหนี้" ให้อัตโนมัติ)</span></div>
+          <div class="form-grid">
+            <div class="field"><label>เลขที่เช็ค <span style="color:var(--red)">*</span></label><input type="text" id="sCheckNo" placeholder="เลขที่เช็ค"></div>
+            <div class="field"><label>ธนาคารของเช็ค <span style="color:var(--red)">*</span></label><input type="text" id="sCheckBank" list="saleCheckBankList" placeholder="เลือกหรือพิมพ์ชื่อธนาคาร"><datalist id="saleCheckBankList">${CHECK_BANKS.map(b=>`<option value="${b}">`).join('')}</datalist></div>
+            <div class="field"><label>วันที่ในเช็ค (วันครบกำหนด) <span style="color:var(--red)">*</span></label><input type="date" id="sCheckDate"></div>
+            <div class="field full"><label>รูปเช็ค <span class="helper-text" style="margin:0;display:inline">(ไม่บังคับ)</span></label>
+              <div id="saleCheckImgBox"><button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('saleCheckFileInput').click()">📎 แนบรูปเช็ค</button></div>
+              <input type="file" id="saleCheckFileInput" accept="image/*" style="display:none" onchange="handleSaleCheckImage(event)">
+            </div>
+          </div>
+          <p class="helper-text" style="margin-bottom:0">ชื่อบริษัท/ลูกค้า จำนวนเงิน วันที่รับเช็ค และสาขา จะใช้ตามรายการขายนี้</p>
+        </div>`}
         ${TAB1_CUSTVIEW==='credit'?`<div class="field"><label>เครดิต (กี่วัน)</label><input type="number" id="fCreditDays" placeholder="เช่น 30" value="${e&&e.creditDays?e.creditDays:''}"></div>`:''}
         <div class="field full"><label>หมายเหตุทั่วไป</label><input type="text" id="fNote" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.note||''):(prefill.billNo?'ชำระแยกช่องทาง':''))}"></div>
         ${(CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<div class="field full"><label>สาขา</label><input type="text" id="fBranch" list="saleBranchList" placeholder="สาขา" value="${escapeHtml(e?e.branch:'')}"><datalist id="saleBranchList">${getBranchList().map(b=>`<option value="${escapeHtml(b)}">`).join('')}</datalist></div>`:''}
@@ -1393,15 +1405,49 @@ function openSaleForm(prefill, editRecord){
 window.__selectedPayType = null;
 // ต้องแนบใบโอนเมื่อ: โอนจ่าย หรือ มัดจำที่ชำระด้วยการโอน
 function needsSlip(type, depositMethod){ return type==='transfer' || (type==='deposit' && depositMethod==='transfer'); }
+// ชำระด้วยเช็ค (หรือมัดจำด้วยเช็ค) → กรอกข้อมูลเช็คแล้วเข้าหน้า "เช็ครับลูกหนี้" ให้อัตโนมัติ
+function needsCheckEntry(type, depositMethod){ return type==='check' || (type==='deposit' && depositMethod==='check'); }
+// ใบโอนหลายรูปเก็บในคอลัมน์ slipUrl เดียวกัน คั่นด้วย |
+function slipUrlList(v){ return String(v||'').split('|').map(x=>x.trim()).filter(Boolean); }
+window.__slipImages = [];
+window.__saleCheckFull = null; window.__saleCheckThumb = null;
+const MAX_SLIP_IMAGES = 5;
+function slipBoxHtml(){
+  const imgs = window.__slipImages || [];
+  return imgs.map((u,i)=>`<div style="position:relative"><img src="${u}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"><button type="button" onclick="removeSlipImage(${i})" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:11px;line-height:20px;cursor:pointer;padding:0">✕</button></div>`).join('')
+    + `<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('slipFileInput').click()">📎 ${imgs.length?'เพิ่มรูปอีก':'แนบรูปใบโอน'}</button>`;
+}
+function renderSlipBox(){ const b=document.getElementById('slipUploadBox'); if(b) b.innerHTML = slipBoxHtml(); }
+function removeSlipImage(i){ (window.__slipImages||[]).splice(i,1); renderSlipBox(); }
+function fileToResizedDataUrl(file, maxW, quality){
+  return new Promise(function(resolve, reject){
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(e){
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = function(){
+        const c = document.createElement('canvas');
+        const sc = Math.min(1, maxW/img.width);
+        c.width = img.width*sc; c.height = img.height*sc;
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function refreshSlipVisibility(){
   const t = window.__selectedPayType;
   const dmEl = document.getElementById('fDepositMethod');
+  const dm = dmEl ? dmEl.value : '';
   const dmField = document.getElementById('depositMethodField');
   if(dmField) dmField.style.display = (t==='deposit') ? 'block' : 'none';
   const sf = document.getElementById('slipField');
-  if(sf) sf.style.display = needsSlip(t, dmEl?dmEl.value:'') ? 'block' : 'none';
-  const hint = document.getElementById('depositCheckHint');
-  if(hint) hint.style.display = (t==='deposit' && dmEl && dmEl.value==='check') ? 'block' : 'none';
+  if(sf) sf.style.display = needsSlip(t, dm) ? 'block' : 'none';
+  const cb = document.getElementById('saleCheckBlock');
+  if(cb) cb.style.display = needsCheckEntry(t, dm) ? 'block' : 'none';
 }
 function selectPayType(id){
   window.__selectedPayType = id;
@@ -1409,54 +1455,99 @@ function selectPayType(id){
   document.getElementById('bankField').style.display = (id==='transfer'||id==='deposit') ? 'block' : 'none';
   refreshSlipVisibility();
 }
-function handleSlipImage(ev){
-  const file = ev.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const img = new Image();
-    img.onload = function(){
-      const c = document.createElement('canvas');
-      const scale = Math.min(1, 1600/img.width);
-      c.width = img.width*scale; c.height = img.height*scale;
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      window.__slipDataUrl = c.toDataURL('image/jpeg', 0.85);
-      const box = document.getElementById('slipUploadBox');
-      if(box){ box.classList.add('has-image'); box.innerHTML = `<img src="${window.__slipDataUrl}">`; }
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-// อัปโหลดใบโอนขึ้น Drive หลังบันทึกรายการแล้ว (ไม่เก็บรูปในเครื่อง ไม่บล็อกการบันทึก)
-async function uploadSlipForSale(rec, dataUrl){
-  if(!APPS_SCRIPT_URL || !dataUrl) return;
-  try{
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST',
-      body: JSON.stringify({ action:'saveSlipImage', data:{
-        base64: dataUrl.split(',')[1],
-        filename: (rec.billNo||'slip')+'_'+rec.id+'.jpg',
-        date: rec.date,
-        monthYearThai: thaiMonthYearFolder(rec.date)
-      }})
-    });
-    const json = await res.json();
-    if(json && json.ok && json.url){
-      const cur = DB.sales.find(x=>x.id===rec.id);
-      if(cur){
-        cur.slipUrl = json.url;
-        await saveSales();
-        await pushSaleUpsert(cur);
-        renderShell();
-      }
-    } else {
-      throw new Error((json&&json.error)||'unknown');
-    }
-  }catch(e){
-    console.error('uploadSlipForSale failed', e);
-    toast('บันทึกรายการแล้ว แต่ใบโอนยังอัปโหลดไม่สำเร็จ — กด "แก้ไข" ที่รายการนี้แล้วแนบรูปใบโอนอีกครั้ง', true);
+async function handleSlipImage(ev){
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = '';
+  for(const f of files){
+    if((window.__slipImages||[]).length >= MAX_SLIP_IMAGES){ toast('แนบได้สูงสุด '+MAX_SLIP_IMAGES+' รูปต่อรายการ', true); break; }
+    try{ window.__slipImages.push(await fileToResizedDataUrl(f, 1600, 0.85)); }
+    catch(e){ toast('อ่านรูปไม่สำเร็จ ลองเลือกรูปใหม่อีกครั้ง', true); }
   }
+  renderSlipBox();
+}
+function renderSaleCheckBox(){
+  const b = document.getElementById('saleCheckImgBox');
+  if(!b) return;
+  b.innerHTML = window.__saleCheckFull
+    ? `<img src="${window.__saleCheckFull}" style="max-width:100%;max-height:160px;border-radius:8px;display:block;margin-bottom:6px"><button type="button" class="btn btn-ghost btn-sm" onclick="clearSaleCheckImage()">ลบรูป</button>`
+    : `<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('saleCheckFileInput').click()">📎 แนบรูปเช็ค</button>`;
+}
+function clearSaleCheckImage(){ window.__saleCheckFull = null; window.__saleCheckThumb = null; renderSaleCheckBox(); }
+async function handleSaleCheckImage(ev){
+  const f = ev.target.files[0];
+  ev.target.value = '';
+  if(!f) return;
+  try{
+    window.__saleCheckFull = await fileToResizedDataUrl(f, 1600, 0.85);
+    window.__saleCheckThumb = await fileToResizedDataUrl(f, 140, 0.55);
+    renderSaleCheckBox();
+  }catch(e){ toast('อ่านรูปไม่สำเร็จ ลองเลือกรูปใหม่อีกครั้ง', true); }
+}
+function collectSaleCheckForm(){
+  const no = document.getElementById('sCheckNo');
+  if(!no) return null;
+  return {
+    checkNo: no.value.trim(),
+    bank: (document.getElementById('sCheckBank')||{value:''}).value.trim(),
+    checkDate: (document.getElementById('sCheckDate')||{value:''}).value
+  };
+}
+// อัปโหลดใบโอน (หลายรูป) ขึ้น Drive หลังบันทึกรายการแล้ว (ไม่เก็บรูปในเครื่อง ไม่บล็อกการบันทึก)
+async function uploadSlipsForSale(rec, images){
+  if(!APPS_SCRIPT_URL || !images || !images.length) return;
+  const urls = []; let failed = 0;
+  for(let i=0;i<images.length;i++){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'saveSlipImage', data:{
+          base64: images[i].split(',')[1],
+          filename: (rec.billNo||'slip')+'_'+rec.id+'_'+(i+1)+'.jpg',
+          date: rec.date,
+          monthYearThai: thaiMonthYearFolder(rec.date)
+        }})
+      });
+      const json = await res.json();
+      if(json && json.ok && json.url) urls.push(json.url); else failed++;
+    }catch(e){ console.error('uploadSlipsForSale failed', e); failed++; }
+  }
+  if(urls.length){
+    const cur = DB.sales.find(x=>x.id===rec.id);
+    if(cur){
+      cur.slipUrl = slipUrlList(cur.slipUrl).concat(urls).join('|');
+      try{ await saveSales(); }catch(e){}
+      await pushSaleUpsert(cur);
+      renderShell();
+    }
+  }
+  if(failed) toast('บันทึกรายการแล้ว แต่ใบโอน '+failed+' รูปอัปโหลดไม่สำเร็จ — กด "แก้ไข" ที่รายการนี้แล้วแนบใบโอนอีกครั้ง', true);
+}
+// สร้างรายการเช็คในหน้า "เช็ครับลูกหนี้" จากรายการขาย
+async function createCheckFromSale(rec, chkIn, fullImg, thumb){
+  const chk = {
+    id: rec.checkId, status:'pending_deposit', createdAt: Date.now(), enteredBy: CURRENT.id,
+    dateReceived: rec.date, company: rec.customerName, bank: chkIn.bank, amount: rec.amount,
+    checkNo: chkIn.checkNo, checkDate: chkIn.checkDate, branch: rec.branch,
+    note: 'จากรายการขาย บิล '+rec.billNo, thumb: thumb || null
+  };
+  DB.checks.push(chk);
+  try{ await saveChecks(); }
+  catch(e){
+    DB.checks.pop();
+    console.error('createCheckFromSale failed', e);
+    const cur = DB.sales.find(x=>x.id===rec.id);
+    if(cur){ delete cur.checkId; try{ await saveSales(); }catch(_){} pushSaleUpsert(cur); }
+    toast('บันทึกรายการขายแล้ว แต่บันทึกเช็คไม่สำเร็จ — กรุณาไปบันทึกเช็คที่หน้า "เช็ครับลูกหนี้" เอง', true);
+    return;
+  }
+  pushCheckUpsert(chk);
+  if(fullImg){
+    lsSet('sst_checkimg_'+chk.id, fullImg);
+    if(window.storage){ try{ await window.storage.set('sst_checkimg_'+chk.id, JSON.stringify(fullImg), true); }catch(e){} }
+    pushCheckImageToDrive(chk, fullImg);
+  }
+  renderShell();
+  toast('บันทึกเช็คเข้าหน้า "เช็ครับลูกหนี้" แล้ว');
 }
 function collectSaleForm(){
   return {
@@ -1476,7 +1567,7 @@ function collectSaleForm(){
     depositMethod: (window.__selectedPayType==='deposit' && document.getElementById('fDepositMethod') && document.getElementById('fDepositMethod').value) ? document.getElementById('fDepositMethod').value : undefined,
   };
 }
-function validateSale(f){
+function validateSale(f, chkIn){
   if(!f.customerName) return {msg:'กรุณากรอกชื่อลูกค้า', field:'fCustomer'};
   if(!f.billNo) return {msg:'กรุณากรอกเลขที่บิล', field:'fBill'};
   if(!f.amount || f.amount<=0) return {msg:'กรุณากรอกยอดเงินให้ถูกต้อง', field:'fAmount'};
@@ -1487,9 +1578,14 @@ function validateSale(f){
     const legacyDeposit = ex && ex.paymentType==='deposit' && !ex.depositMethod;
     if(!legacyDeposit) return {msg:'กรุณาเลือกว่าชำระมัดจำด้วยอะไร (เงินสด / โอนจ่าย / เช็ค / บัตรเครดิต)', field:'fDepositMethod'};
   }
-  if(needsSlip(f.paymentType, f.depositMethod) && !window.__slipDataUrl){
+  if(needsSlip(f.paymentType, f.depositMethod) && !(window.__slipImages||[]).length){
     const slipOptional = ex && (ex.slipUrl || needsSlip(ex.paymentType, ex.depositMethod));
     if(!slipOptional) return {msg:'กรุณาแนบรูปใบโอน', field:'slipUploadBox'};
+  }
+  if(needsCheckEntry(f.paymentType, f.depositMethod) && !(ex && ex.checkId) && chkIn){
+    if(!chkIn.checkNo) return {msg:'กรุณากรอกเลขที่เช็ค', field:'sCheckNo'};
+    if(!chkIn.bank) return {msg:'กรุณากรอกธนาคารของเช็ค', field:'sCheckBank'};
+    if(!chkIn.checkDate) return {msg:'กรุณาเลือกวันที่ในเช็ค', field:'sCheckDate'};
   }
   return null;
 }
@@ -1505,8 +1601,10 @@ function flagInvalidField(id){
 }
 function previewSale(){
   const f = collectSaleForm();
-  const err = validateSale(f);
+  const chkIn = collectSaleCheckForm();
+  const err = validateSale(f, chkIn);
   if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  window.__lastPreviewForm = f; window.__lastPreviewCheck = chkIn;
   const pt = PAY_TYPES.find(p=>p.id===f.paymentType);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนบันทึก</div><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -1522,7 +1620,8 @@ function previewSale(){
         <div class="preview-row"><span class="k">ประเภทชำระ</span><span class="v">${pt.icon} ${pt.label}</span></div>
         ${f.bank?`<div class="preview-row"><span class="k">ธนาคาร</span><span class="v">${f.bank}</span></div>`:''}
         ${f.paymentType==='deposit'&&f.depositMethod?`<div class="preview-row"><span class="k">ชำระมัดจำด้วย</span><span class="v">${({cash:'เงินสด',transfer:'โอนจ่าย',check:'เช็ค',credit_card:'บัตรเครดิต'})[f.depositMethod]||f.depositMethod}</span></div>`:''}
-        ${(needsSlip(f.paymentType,f.depositMethod)&&window.__slipDataUrl)?`<div class="preview-row"><span class="k">ใบโอน</span><span class="v">📎 แนบรูปแล้ว</span></div>`:''}
+        ${(needsSlip(f.paymentType,f.depositMethod)&&(window.__slipImages||[]).length)?`<div class="preview-row"><span class="k">ใบโอน</span><span class="v">📎 แนบ ${(window.__slipImages||[]).length} รูป</span></div>`:''}
+        ${(needsCheckEntry(f.paymentType,f.depositMethod)&&chkIn&&chkIn.checkNo)?`<div class="preview-row"><span class="k">เช็ค</span><span class="v">เลขที่ ${escapeHtml(chkIn.checkNo)} · ${escapeHtml(chkIn.bank)} · ${fmtDate(chkIn.checkDate)}${window.__saleCheckFull?' · 📎 แนบรูป':''}</span></div>`:''}
         ${f.creditDays?`<div class="preview-row"><span class="k">เครดิต</span><span class="v">${f.creditDays} วัน</span></div>`:''}
         <div class="preview-row"><span class="k">หมายเหตุ</span><span class="v">${escapeHtml(f.note)||'-'}</span></div>
         <div class="preview-row"><span class="k">สาขา</span><span class="v">${escapeHtml(f.branch)}</span></div>
@@ -1540,9 +1639,13 @@ function reopenEditSaleForm(){
   if(rec) openSaleForm(null, rec);
 }
 async function submitSale(){
-  const f = collectSaleForm();
-  const err = validateSale(f);
+  // ถ้ากดยืนยันจากหน้า "ตัวอย่าง" ฟอร์มเดิมไม่อยู่ใน DOM แล้ว ให้ใช้ข้อมูลที่เก็บไว้ตอนกดดูตัวอย่าง
+  const formLive = !!document.getElementById('fNo');
+  const f = formLive ? collectSaleForm() : (window.__lastPreviewForm || collectSaleForm());
+  const chkIn = formLive ? collectSaleCheckForm() : (window.__lastPreviewCheck || null);
+  const err = validateSale(f, chkIn);
   if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
+  const saleCheckFull = window.__saleCheckFull, saleCheckThumb = window.__saleCheckThumb;
 
   const editId = window.__editingSaleId;
   if(editId){
@@ -1553,6 +1656,8 @@ async function submitSale(){
     const isOwnToday = existing.employeeId===CURRENT.id && isWithinEditWindow(existing.date);
     if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
     const updated = Object.assign({}, existing, f);
+    const makeCheck = needsCheckEntry(updated.paymentType, updated.depositMethod) && !existing.checkId && chkIn;
+    if(makeCheck) updated.checkId = uid();
     DB.sales[idx] = updated;
     try{
       await saveSales();
@@ -1566,13 +1671,16 @@ async function submitSale(){
     closeModal();
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
-    const slipToUpload = needsSlip(updated.paymentType, updated.depositMethod) ? window.__slipDataUrl : null;
-    window.__slipDataUrl = null;
-    pushSaleUpsert(updated).then(()=>{ if(slipToUpload) uploadSlipForSale(updated, slipToUpload); });
+    const slipsToUpload = needsSlip(updated.paymentType, updated.depositMethod) ? (window.__slipImages||[]).slice() : [];
+    window.__slipImages = [];
+    pushSaleUpsert(updated).then(()=>{ if(slipsToUpload.length) uploadSlipsForSale(updated, slipsToUpload); });
+    if(makeCheck) createCheckFromSale(updated, chkIn, saleCheckFull, saleCheckThumb);
     return;
   }
 
   const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now()}, f);
+  const makeCheckNew = needsCheckEntry(rec.paymentType, rec.depositMethod) && !!chkIn;
+  if(makeCheckNew) rec.checkId = uid();
   DB.sales.push(rec);
   try{
     await saveSales();
@@ -1584,9 +1692,10 @@ async function submitSale(){
   }
   renderShell();
   toast('บันทึกรายการเรียบร้อย');
-  const slipToUpload = needsSlip(rec.paymentType, rec.depositMethod) ? window.__slipDataUrl : null;
-  window.__slipDataUrl = null;
-  pushSaleUpsert(rec).then(()=>{ if(slipToUpload) uploadSlipForSale(rec, slipToUpload); });
+  const slipsToUpload = needsSlip(rec.paymentType, rec.depositMethod) ? (window.__slipImages||[]).slice() : [];
+  window.__slipImages = [];
+  pushSaleUpsert(rec).then(()=>{ if(slipsToUpload.length) uploadSlipsForSale(rec, slipsToUpload); });
+  if(makeCheckNew) createCheckFromSale(rec, chkIn, saleCheckFull, saleCheckThumb);
   askSplitPayment(rec);
 }
 function openCancelSaleForm(id){
