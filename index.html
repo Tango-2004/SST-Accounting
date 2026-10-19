@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261015-30';
+const APP_VERSION = 'sst-build-20261019-32';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1178,7 +1178,7 @@ function renderTab1Table(){
         return `<tr${r.cancelled?' class="no-print" style="opacity:0.6"':''}>
           <td>${r.no}</td>
           <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}${(r.contactName||r.contactPhone)?`<br><span class="helper-text" style="margin:0">${r.contactName?escapeHtml(r.contactName):''}${r.contactName&&r.contactPhone?' · ':''}${r.contactPhone?escapeHtml(r.contactPhone):''}</span>`:''}</td>
-          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}</td>
+          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}${r.reservation?` <span class="badge" style="font-size:10px;background:#FFF1D6;color:#9A5B00">📝 ใบจอง · รอจับคู่</span>`:''}${(!r.reservation&&r.reservationNo)?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
           <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><span class="no-print">${slipUrlList(r.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน${arr.length>1?' '+(i+1):''}</a>`).join(' ')}</span>`:''}${r.checkId?`<br><span class="no-print helper-text" style="margin:0">🧾 เข้าหน้าเช็คแล้ว</span>`:''}</td>
@@ -1344,6 +1344,12 @@ function openSaleForm(prefill, editRecord){
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
             <input type="checkbox" id="fPinkBill" ${e&&e.pinkBill?'checked':''} style="width:17px;height:17px;accent-color:var(--red)">
             <span style="font-size:13.5px">🌸 เป็นบิลสีชมพู</span>
+          </label>
+        </div>
+        <div class="field full">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:0">
+            <input type="checkbox" id="fReservation" ${e&&e.reservation?'checked':''} style="width:17px;height:17px;accent-color:var(--red);margin-top:2px">
+            <span style="font-size:13.5px">📝 ชำระด้วยใบจอง <span class="helper-text" style="margin:0;display:block">ติ๊กเมื่อยังไม่มีเลขบิล HS/IV — ให้กรอกเลขที่ใบจองในช่อง "เลขที่บิล" แล้วฝ่ายบัญชีจะจับคู่เป็นเลขบิลจริงให้ภายหลัง</span></span>
           </label>
         </div>
         <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01" value="${e?e.amount:''}"></div>
@@ -1554,6 +1560,7 @@ function collectSaleForm(){
     branch: (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
     creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
     pinkBill: document.getElementById('fPinkBill') ? document.getElementById('fPinkBill').checked : false,
+    reservation: document.getElementById('fReservation') ? document.getElementById('fReservation').checked : false,
     depositMethod: (window.__selectedPayType==='deposit' && document.getElementById('fDepositMethod') && document.getElementById('fDepositMethod').value) ? document.getElementById('fDepositMethod').value : undefined,
   };
 }
@@ -1572,7 +1579,8 @@ function validateSale(f, chkIn){
     const slipOptional = ex && (ex.slipUrl || needsSlip(ex.paymentType, ex.depositMethod));
     if(!slipOptional) return {msg:'กรุณาแนบรูปใบโอน', field:'slipUploadBox'};
   }
-  if(needsCheckEntry(f.paymentType, f.depositMethod) && !(ex && ex.checkId) && chkIn){
+  if(needsCheckEntry(f.paymentType, f.depositMethod) && !(ex && ex.checkId)){
+    if(!chkIn) return {msg:'กรุณากรอกรายละเอียดเช็ค (เลขที่เช็ค / ธนาคาร / วันที่ในเช็ค) ให้ครบ', field:'saleCheckBlock'};
     if(!chkIn.checkNo) return {msg:'กรุณากรอกเลขที่เช็ค', field:'sCheckNo'};
     if(!chkIn.bank) return {msg:'กรุณากรอกธนาคารของเช็ค', field:'sCheckBank'};
     if(!chkIn.checkDate) return {msg:'กรุณาเลือกวันที่ในเช็ค', field:'sCheckDate'};
@@ -1607,6 +1615,7 @@ function previewSale(){
         ${f.contactPhone?`<div class="preview-row"><span class="k">เบอร์โทร</span><span class="v">${escapeHtml(f.contactPhone)}</span></div>`:''}
         <div class="preview-row"><span class="k">เลขที่บิล</span><span class="v">${escapeHtml(f.billNo)}</span></div>
         <div class="preview-row"><span class="k">ยอดเงิน</span><span class="v">฿ ${fmtMoney(f.amount)}</span></div>
+        ${f.reservation?`<div class="preview-row"><span class="k">ชนิดเอกสาร</span><span class="v">📝 ใบจอง (รอบัญชีจับคู่เลขบิลจริง)</span></div>`:''}
         <div class="preview-row"><span class="k">ประเภทชำระ</span><span class="v">${pt.icon} ${pt.label}</span></div>
         ${f.bank?`<div class="preview-row"><span class="k">ธนาคาร</span><span class="v">${f.bank}</span></div>`:''}
         ${f.paymentType==='deposit'&&f.depositMethod?`<div class="preview-row"><span class="k">ชำระมัดจำด้วย</span><span class="v">${({cash:'เงินสด',transfer:'โอนจ่าย',check:'เช็ค',credit_card:'บัตรเครดิต'})[f.depositMethod]||f.depositMethod}</span></div>`:''}
@@ -1646,6 +1655,8 @@ async function submitSale(){
     const isOwnToday = existing.employeeId===CURRENT.id && isWithinEditWindow(existing.date);
     if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
     const updated = Object.assign({}, existing, f);
+    if(updated.reservation) updated.reservationNo = updated.billNo;
+    else if(existing.reservation) updated.reservationNo = '';
     const makeCheck = needsCheckEntry(updated.paymentType, updated.depositMethod) && !existing.checkId && chkIn;
     if(makeCheck) updated.checkId = uid();
     DB.sales[idx] = updated;
@@ -1669,6 +1680,7 @@ async function submitSale(){
   }
 
   const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now()}, f);
+  if(rec.reservation) rec.reservationNo = rec.billNo;
   const makeCheckNew = needsCheckEntry(rec.paymentType, rec.depositMethod) && !!chkIn;
   if(makeCheckNew) rec.checkId = uid();
   DB.sales.push(rec);
@@ -1882,18 +1894,97 @@ function cancelNote(r){
   if(!r || !r.cancelled) return '';
   return `<br><span class="badge badge-unpaid" style="font-size:10px">✕ ลบ/ยกเลิกแล้ว</span> <span class="helper-text" style="margin:0">เหตุผล: ${escapeHtml(r.cancelReason||'-')}${r.cancelledBy?' · โดย '+escapeHtml(r.cancelledBy):''}</span>`;
 }
+const RES_WARN_DAYS = 3;
+function reservationAgeDays(r){
+  const a = new Date(r.date+'T00:00:00'), b = new Date(todayStr()+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function getPendingReservations(){
+  return DB.sales.filter(x=>x.reservation && !x.cancelled).sort((a,b)=>(a.date<b.date?-1:a.date>b.date?1:0));
+}
+function tab2Pills(availableViews, canManageCash){
+  const pend = canManageCash ? getPendingReservations() : [];
+  const aged = pend.some(r=>reservationAgeDays(r)>=RES_WARN_DAYS);
+  return `<div class="pill-tabs no-print" style="margin-bottom:16px">
+      ${availableViews.map(v=>`<button class="pill-tab ${v==='HS'?'type-hs':'type-iv'} ${TAB2_SUBVIEW===v?'active':''}" onclick="TAB2_SUBVIEW='${v}';renderShell()">เลขบิลขึ้นต้น ${v}</button>`).join('')}
+      ${canManageCash?`<button class="pill-tab ${TAB2_SUBVIEW==='RES'?'active':''}" onclick="TAB2_SUBVIEW='RES';renderShell()">📝 ใบจองรอจับคู่ (${pend.length})${aged?' ⚠':''}</button>`:''}
+    </div>`;
+}
+function renderReservationPending(availableViews, canManageCash){
+  const list = getPendingReservations();
+  const agedCount = list.filter(r=>reservationAgeDays(r)>=RES_WARN_DAYS).length;
+  const total = list.reduce((a,b)=>a+Number(b.amount||0),0);
+  const ptLabel = t => { const p = PAY_TYPES.find(x=>x.id===t); return p ? p.icon+' '+p.label : (t||''); };
+  return tab2Pills(availableViews, canManageCash) + `
+    <div class="card">
+      <div class="card-header"><div class="card-title">${peakIcon()} ใบจองรอจับคู่เลขบิลจริง</div></div>
+      <p class="helper-text" style="margin-top:0">รายการที่สาขารับชำระด้วยใบจอง (ยังไม่มีเลข HS/IV) — เทียบกับบิลที่ได้รับจากอีกสาขา แล้วกด "จับคู่" เพื่อใส่เลขบิลจริง รายการจะย้ายเข้าหน้ายอด HS/IV อัตโนมัติ และเก็บเลขใบจองเดิมไว้เป็นหมายเหตุ</p>
+      ${agedCount?`<div class="locked-notice" style="border-color:var(--red);color:var(--red)">⚠ มี ${agedCount} รายการค้างจับคู่ตั้งแต่ ${RES_WARN_DAYS} วันขึ้นไป — กรุณาตรวจสอบ</div>`:''}
+      ${list.length?`<div class="table-wrap"><table>
+        <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่ใบจอง</th><th style="text-align:right">ยอดเงิน</th><th>ชำระโดย</th><th>สาขา</th><th>อายุ</th><th class="no-print"></th></tr></thead>
+        <tbody>${list.map(r=>{
+          const d = reservationAgeDays(r); const old = d>=RES_WARN_DAYS;
+          return `<tr${old?' style="background:#FFF4F2"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}</td><td><b>${escapeHtml(r.billNo)}</b></td><td style="text-align:right">${fmtMoney(r.amount)}</td><td>${ptLabel(r.paymentType)}</td><td>${escapeHtml(r.branch||'')}</td><td>${old?`<span class="badge" style="background:#FDE2DE;color:#B3261E">⚠ ค้าง ${d} วัน</span>`:(d<=0?'วันนี้':d+' วัน')}</td><td class="no-print"><button class="btn btn-primary btn-sm" onclick="openMatchReservation('${r.id}')">จับคู่บิลจริง</button></td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr style="font-weight:700"><td colspan="3">รวมที่ยังไม่จับคู่ (${list.length} รายการ)</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="4"></td></tr></tfoot>
+      </table></div>`:`<div class="empty-state">${peakIcon(26)}<div>ไม่มีใบจองค้างจับคู่</div></div>`}
+    </div>`;
+}
+function openMatchReservation(id){
+  const r = DB.sales.find(x=>x.id===id);
+  if(!r) return;
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} จับคู่ใบจองกับบิลจริง</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="preview-box">
+        <div class="preview-row"><span class="k">เลขที่ใบจอง</span><span class="v">${escapeHtml(r.billNo)}</span></div>
+        <div class="preview-row"><span class="k">ลูกค้า</span><span class="v">${escapeHtml(r.customerName)}</span></div>
+        <div class="preview-row"><span class="k">ยอดเงิน</span><span class="v">฿ ${fmtMoney(r.amount)}</span></div>
+        <div class="preview-row"><span class="k">สาขา / วันที่</span><span class="v">${escapeHtml(r.branch||'')} · ${fmtDate(r.date)}</span></div>
+      </div>
+      <div class="field full" style="margin-top:14px"><label>เลขที่บิลจริง (HS / IV) <span style="color:var(--red)">*</span></label>
+        <input type="text" id="matchBillNo" placeholder="เช่น HS26006921"></div>
+      <p class="helper-text">เลขใบจองเดิมจะถูกเก็บไว้ในรายการและหมายเหตุ</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+      <button class="btn btn-primary" onclick="confirmMatchReservation('${id}')">ยืนยันจับคู่</button>
+    </div>`);
+}
+async function confirmMatchReservation(id){
+  const r = DB.sales.find(x=>x.id===id);
+  if(!r) return;
+  const bill = (document.getElementById('matchBillNo').value||'').trim().toUpperCase();
+  if(!bill){ toast('กรุณากรอกเลขที่บิลจริง', true); flagInvalidField('matchBillNo'); return; }
+  if(!/^(HS|IV)/.test(bill) && !confirm('เลขที่บิลนี้ไม่ได้ขึ้นต้นด้วย HS หรือ IV จะไม่ถูกนับในหน้ายอด HS/IV — ต้องการจับคู่ต่อหรือไม่?')) return;
+  const dup = DB.sales.find(x=>x.id!==id && !x.cancelled && !x.reservation && String(x.billNo||'').toUpperCase()===bill);
+  if(dup && !confirm('มีรายการที่ใช้เลขบิล '+bill+' อยู่แล้ว (อาจเป็นการแบ่งชำระหรือจับคู่ซ้ำ) — ต้องการจับคู่ต่อหรือไม่?')) return;
+  const before = {billNo:r.billNo, note:r.note, reservation:r.reservation, reservationNo:r.reservationNo};
+  const oldNo = r.billNo;
+  r.reservationNo = oldNo;
+  r.billNo = bill;
+  r.reservation = false;
+  r.note = (r.note?r.note+' · ':'')+'ใบจองเลขที่ '+oldNo;
+  try{ await saveSales(); }
+  catch(e){ Object.assign(r, before); toast('จับคู่ไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushSaleUpsert(r);
+  closeModal(); renderShell();
+  toast('จับคู่แล้ว: '+oldNo+' → '+bill);
+}
 function renderTab2(){
   const date = getTab1FilterDateForTab2();
   const myAccess = (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? {HS:true,IV:true} : (CURRENT.hsre||{});
   const availableViews = ['HS','IV'].filter(k=>myAccess[k]);
-  if(!availableViews.length){
+  const canManageCash = CURRENT.role==='accounting' || (CURRENT.role==='admin'||CURRENT.role==='supervisor');
+  if(!availableViews.length && !canManageCash){
     return `<div class="card"><div class="empty-state">${peakIcon(26)}<div>คุณไม่มีสิทธิ์เข้าถึงข้อมูล HS หรือ IV</div></div></div>`;
   }
-  if(!availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0];
+  if(TAB2_SUBVIEW==='RES' && !canManageCash) TAB2_SUBVIEW = availableViews[0];
+  if(TAB2_SUBVIEW!=='RES' && !availableViews.includes(TAB2_SUBVIEW)) TAB2_SUBVIEW = availableViews[0] || 'RES';
+  if(TAB2_SUBVIEW==='RES') return renderReservationPending(availableViews, canManageCash);
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
-  const canManageCash = CURRENT.role==='accounting' || (CURRENT.role==='admin'||CURRENT.role==='supervisor');
 
-  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto);
+  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto && !s.reservation);
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
   const total = rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   const hasAny = rows.length || manualRows.length;
@@ -1902,9 +1993,7 @@ function renderTab2(){
     <div class="filter-bar no-print">
       <label>วันที่</label><input type="date" id="t2Date" value="${date}" oninput="document.getElementById('t2DateCap').textContent=formatDDMMYYYY(this.value)" onchange="renderShell()"> <span class="helper-text" id="t2DateCap" style="margin:0">${formatDDMMYYYY(date)}</span>
     </div>
-    <div class="pill-tabs no-print" style="margin-bottom:16px">
-      ${availableViews.map(v=>`<button class="pill-tab ${v==='HS'?'type-hs':'type-iv'} ${TAB2_SUBVIEW===v?'active':''}" onclick="TAB2_SUBVIEW='${v}';renderShell()">เลขบิลขึ้นต้น ${v}</button>`).join('')}
-    </div>
+    ${tab2Pills(availableViews, canManageCash)}
     <div class="card type-card ${typeClass}">
       <div class="card-header">
         <div class="card-title"><span class="type-chip ${typeClass}">${peakIcon(11)} ${TAB2_SUBVIEW}</span> สรุปเงินสด — ${fmtDate(date)}</div>
@@ -1917,7 +2006,7 @@ function renderTab2(){
       ${hasAny? `<div class="table-wrap"><table>
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th>${canManageCash?'<th class="no-print"></th>':''}</tr></thead>
         <tbody>
-          ${rows.map(r=>`<tr${r.cancelled?' class="no-print" style="opacity:0.65"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span></td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
+          ${rows.map(r=>`<tr${r.cancelled?' class="no-print" style="opacity:0.65"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span>${r.reservationNo?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
           ${manualRows.map(e=>{
             const canEditThis = canManageCash && ((CURRENT.role==='admin'||CURRENT.role==='supervisor') || isWithinEditWindow(e.date));
             return `<tr${e.cancelled?' class="no-print" style="opacity:0.65"':''}>
@@ -2080,7 +2169,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const inRange = function(d){ return d>=fromDate && d<=toDate; };
   const sectionsHtml = types.map(type=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
+    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     const allRows = rows.concat(manualRows).filter(r=>!r.cancelled).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
     const subTotal = allRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
@@ -2094,7 +2183,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
     `;
   }).join('');
   const grandTotal = types.reduce((sum,type)=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto);
+    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation);
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     return sum + rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
