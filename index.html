@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261019-32';
+const APP_VERSION = 'sst-build-20261029-33';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1321,7 +1321,7 @@ function openSaleForm(prefill, editRecord){
   window.__selectedPayType = e ? e.paymentType : null;
   window.__editingSaleId = e ? e.id : null;
   const keepAttachments = !!window.__keepSlip;
-  if(!keepAttachments){ window.__slipImages = []; window.__saleCheckFull = null; window.__saleCheckThumb = null; }
+  if(!keepAttachments){ window.__slipRemove = []; window.__slipImages = []; window.__saleCheckFull = null; window.__saleCheckThumb = null; }
   window.__keepSlip = false;
   const date = e ? e.date : (getTab1FilterDate() || todayStr());
   if(!e && CURRENT.role!=='admin' && date < todayStr()){
@@ -1369,7 +1369,10 @@ function openSaleForm(prefill, editRecord){
         <div class="field full" id="slipField" style="display:${needsSlip(window.__selectedPayType, e?e.depositMethod:'')?'block':'none'}">
           <label>รูปใบโอน (แนบได้หลายรูป) ${(e&&(e.slipUrl||needsSlip(e.paymentType,e.depositMethod)))?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
           <div id="slipUploadBox" style="border:1.5px dashed var(--border);border-radius:10px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">${slipBoxHtml()}</div>
-          ${e&&e.slipUrl?`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว: ${slipUrlList(e.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a>`).join(' · ')} — รูปที่เลือกเพิ่มจะถูกเพิ่มต่อจากของเดิม</p>`:''}
+          ${e&&e.slipUrl?((CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<div class="helper-text" style="margin-top:6px">
+            <div>มีใบโอนแนบอยู่แล้ว — ติ๊ก "นำออก" ที่รูปเก่าที่ต้องการเปลี่ยน แล้วแนบรูปใหม่ด้านบน เมื่อบันทึก ลิงก์ Drive จะเป็นรูปใหม่ และรูปเก่าจะถูกย้ายไปถังขยะของ Drive (กู้คืนได้ 30 วัน)</div>
+            ${slipUrlList(e.slipUrl).map((u,i)=>`<label style="display:flex;align-items:center;gap:8px;margin-top:4px;cursor:pointer"><input type="checkbox" ${(window.__slipRemove||[]).includes(u)?'checked':''} onchange="toggleSlipRemove(${i},this.checked)" style="width:16px;height:16px;accent-color:var(--red)"><a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a> <span>นำออก</span></label>`).join('')}
+          </div>`:`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว: ${slipUrlList(e.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a>`).join(' · ')} — รูปที่เลือกเพิ่มจะถูกเพิ่มต่อจากของเดิม</p>`):''}
           <input type="file" id="slipFileInput" accept="image/*" multiple style="display:none" onchange="handleSlipImage(event)">
         </div>
         ${(e&&e.checkId&&needsCheckEntry(e.paymentType,e.depositMethod))?`<div class="field full"><div class="locked-notice">${peakIcon(13)} รายการนี้บันทึกเช็คเข้าหน้า "เช็ครับลูกหนี้" แล้ว — ถ้าจะแก้ข้อมูลเช็ค ให้แก้ที่หน้านั้น</div></div>`:`
@@ -1404,6 +1407,15 @@ function needsSlip(type, depositMethod){ return type==='transfer' || (type==='de
 // ชำระด้วยเช็ค (หรือมัดจำด้วยเช็ค) → กรอกข้อมูลเช็คแล้วเข้าหน้า "เช็ครับลูกหนี้" ให้อัตโนมัติ
 function needsCheckEntry(type, depositMethod){ return type==='check' || (type==='deposit' && depositMethod==='check'); }
 // ใบโอนหลายรูปเก็บในคอลัมน์ slipUrl เดียวกัน คั่นด้วย |
+window.__slipRemove = [];
+function toggleSlipRemove(i, on){
+  const ex = window.__editingSaleId ? DB.sales.find(x=>x.id===window.__editingSaleId) : null;
+  if(!ex) return;
+  const u = slipUrlList(ex.slipUrl)[i];
+  if(!u) return;
+  window.__slipRemove = (window.__slipRemove||[]).filter(x=>x!==u);
+  if(on) window.__slipRemove.push(u);
+}
 function slipUrlList(v){ return String(v||'').split('|').map(x=>x.trim()).filter(Boolean); }
 window.__slipImages = [];
 window.__saleCheckFull = null; window.__saleCheckThumb = null;
@@ -1490,7 +1502,7 @@ function collectSaleCheckForm(){
 }
 // อัปโหลดใบโอน (หลายรูป) ขึ้น Drive หลังบันทึกรายการแล้ว (ไม่เก็บรูปในเครื่อง ไม่บล็อกการบันทึก)
 async function uploadSlipsForSale(rec, images){
-  if(!APPS_SCRIPT_URL || !images || !images.length) return;
+  if(!APPS_SCRIPT_URL || !images || !images.length) return true;
   const urls = []; let failed = 0;
   for(let i=0;i<images.length;i++){
     try{
@@ -1516,7 +1528,30 @@ async function uploadSlipsForSale(rec, images){
       renderShell();
     }
   }
-  if(failed) toast('บันทึกรายการแล้ว แต่ใบโอน '+failed+' รูปอัปโหลดไม่สำเร็จ — กด "แก้ไข" ที่รายการนี้แล้วแนบใบโอนอีกครั้ง', true);
+  if(failed) toast('บันทึกรายการแล้ว แต่ใบโอน '+failed+' รูปอัปโหลดไม่สำเร็จ — กด "แก้ไข" ที่รายการนี้แล้วแนบใบโอนอีกครั้ง (รูปเก่ายังไม่ถูกนำออก)', true);
+  return failed===0;
+}
+// นำรูปใบโอนเก่าออกจากรายการ + ย้ายไฟล์ไปถังขยะ Drive (เรียกหลังอัปโหลดรูปใหม่สำเร็จเท่านั้น)
+async function removeSlipsFromSale(id, urls){
+  const cur = DB.sales.find(x=>x.id===id);
+  if(!cur || !urls || !urls.length) return;
+  cur.slipUrl = slipUrlList(cur.slipUrl).filter(u=>!urls.includes(u)).join('|');
+  try{ await saveSales(); }catch(e){}
+  await pushSaleUpsert(cur);
+  renderShell();
+  if(APPS_SCRIPT_URL){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', body: JSON.stringify({ action:'trashSlipFiles', data:{ urls } }) });
+      const json = await res.json();
+      if(json && json.ok){ toast('เปลี่ยนรูปใบโอนแล้ว — รูปเก่าถูกย้ายไปถังขยะ Drive'); return; }
+    }catch(e){ console.error('trashSlipFiles failed', e); }
+    toast('เปลี่ยนรูปใบโอนในระบบแล้ว แต่ย้ายรูปเก่าใน Drive ไม่สำเร็จ — ลบเองได้ในโฟลเดอร์ใบโอน', true);
+  }
+}
+async function finishSlipChanges(rec, slipsToUpload, removed){
+  let ok = true;
+  if(slipsToUpload.length) ok = await uploadSlipsForSale(rec, slipsToUpload);
+  if(ok && removed.length) await removeSlipsFromSale(rec.id, removed);
 }
 // สร้างรายการเช็คในหน้า "เช็ครับลูกหนี้" จากรายการขาย
 async function createCheckFromSale(rec, chkIn, fullImg, thumb){
@@ -1578,6 +1613,10 @@ function validateSale(f, chkIn){
   if(needsSlip(f.paymentType, f.depositMethod) && !(window.__slipImages||[]).length){
     const slipOptional = ex && (ex.slipUrl || needsSlip(ex.paymentType, ex.depositMethod));
     if(!slipOptional) return {msg:'กรุณาแนบรูปใบโอน', field:'slipUploadBox'};
+  }
+  if(ex && needsSlip(f.paymentType, f.depositMethod) && (window.__slipRemove||[]).length && !(window.__slipImages||[]).length){
+    const remain = slipUrlList(ex.slipUrl).filter(u=>!(window.__slipRemove||[]).includes(u));
+    if(!remain.length) return {msg:'ถ้านำรูปใบโอนเก่าออกทั้งหมด กรุณาแนบรูปใหม่ด้วย', field:'slipUploadBox'};
   }
   if(needsCheckEntry(f.paymentType, f.depositMethod) && !(ex && ex.checkId)){
     if(!chkIn) return {msg:'กรุณากรอกรายละเอียดเช็ค (เลขที่เช็ค / ธนาคาร / วันที่ในเช็ค) ให้ครบ', field:'saleCheckBlock'};
@@ -1673,8 +1712,10 @@ async function submitSale(){
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
     const slipsToUpload = needsSlip(updated.paymentType, updated.depositMethod) ? (window.__slipImages||[]).slice() : [];
-    window.__slipImages = [];
-    pushSaleUpsert(updated).then(()=>{ if(slipsToUpload.length) uploadSlipsForSale(updated, slipsToUpload); });
+    const isAdminEdit = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
+    const slipsToRemove = isAdminEdit ? (window.__slipRemove||[]).filter(u=>slipUrlList(existing.slipUrl).includes(u)) : [];
+    window.__slipImages = []; window.__slipRemove = [];
+    pushSaleUpsert(updated).then(()=>finishSlipChanges(updated, slipsToUpload, slipsToRemove));
     if(makeCheck) createCheckFromSale(updated, chkIn, saleCheckFull, saleCheckThumb);
     return;
   }
