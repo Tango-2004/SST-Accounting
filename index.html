@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261029-37';
+const APP_VERSION = 'sst-build-20261029-38';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1805,6 +1805,11 @@ async function confirmCancelSale(id){
     }
   }
   pushSaleUpsert(rec);
+  const linkedEntries = DB.cashEntries.filter(e=>e.saleId===rec.id && !e.cancelled);
+  if(linkedEntries.length){
+    linkedEntries.forEach(e=>{ e.cancelled = true; e.cancelReason = reason; e.cancelledBy = CURRENT.name; e.cancelledAt = Date.now(); });
+    try{ await saveCashEntries(); linkedEntries.forEach(e=>pushCashEntryUpsert(e)); }catch(e){ console.error('cascade cancel cash entries failed', e); }
+  }
   closeModal();
   renderShell();
   toast('ยกเลิกรายการแล้ว — ไม่ถูกนำมารวมยอดอีกต่อไป'+chkMsg);
@@ -1820,6 +1825,11 @@ async function uncancelSale(id){
   rec.cancelReason = '';
   await saveSales();
   pushSaleUpsert(rec);
+  const backEntries = DB.cashEntries.filter(e=>e.saleId===rec.id && e.cancelled);
+  if(backEntries.length){
+    backEntries.forEach(e=>{ e.cancelled = false; e.cancelReason = ''; });
+    try{ await saveCashEntries(); backEntries.forEach(e=>pushCashEntryUpsert(e)); }catch(e){}
+  }
   renderShell();
   toast('คืนสถานะรายการแล้ว');
 }
@@ -2216,8 +2226,15 @@ async function confirmDeleteCashEntry(id){
   try{ await saveCashEntries(); }
   catch(e){ Object.assign(rec, before); toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); return; }
   pushCashEntryUpsert(rec);
+  let linkedMsg = '';
+  const lsale = rec.saleId ? DB.sales.find(x=>x.id===rec.saleId) : null;
+  if(lsale && !lsale.cancelled){
+    lsale.cancelled = true; lsale.cancelReason = reason; lsale.cancelledBy = CURRENT.name; lsale.cancelledAt = Date.now();
+    try{ await saveSales(); pushSaleUpsert(lsale); linkedMsg = ' และยกเลิกบิลในรายงานการขายด้วยแล้ว'; }
+    catch(e){ delete lsale.cancelled; linkedMsg = ' (แต่ยกเลิกบิลในรายงานการขายไม่สำเร็จ กรุณายกเลิกเอง)'; }
+  }
   closeModal(); renderShell();
-  toast('ลบรายการแล้ว — บันทึกเหตุผลไว้ และไม่ถูกนำมารวมยอด');
+  toast('ลบรายการแล้ว — บันทึกเหตุผลไว้ และไม่ถูกนำมารวมยอด'+linkedMsg);
 }
 async function restoreCashEntry(id){
   const rec = DB.cashEntries.find(x=>x.id===id);
@@ -2228,6 +2245,11 @@ async function restoreCashEntry(id){
   try{ await saveCashEntries(); }
   catch(e){ toast('คืนสถานะไม่สำเร็จ กรุณาลองใหม่', true); return; }
   pushCashEntryUpsert(rec);
+  const rsale = rec.saleId ? DB.sales.find(x=>x.id===rec.saleId) : null;
+  if(rsale && rsale.cancelled){
+    rsale.cancelled = false; rsale.cancelReason = '';
+    try{ await saveSales(); pushSaleUpsert(rsale); }catch(e){}
+  }
   renderShell();
   toast('คืนสถานะรายการแล้ว');
 }
