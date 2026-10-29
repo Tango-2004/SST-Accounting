@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261029-33';
+const APP_VERSION = 'sst-build-20261029-34';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1936,6 +1936,8 @@ function cancelNote(r){
   return `<br><span class="badge badge-unpaid" style="font-size:10px">✕ ลบ/ยกเลิกแล้ว</span> <span class="helper-text" style="margin:0">เหตุผล: ${escapeHtml(r.cancelReason||'-')}${r.cancelledBy?' · โดย '+escapeHtml(r.cancelledBy):''}</span>`;
 }
 const RES_WARN_DAYS = 3;
+function cashDateOf(x){ return x.cashDate || x.date; }
+function isSaleImportedToCash(id){ return DB.cashEntries.some(e=>e.saleId===id && !e.cancelled); }
 function reservationAgeDays(r){
   const a = new Date(r.date+'T00:00:00'), b = new Date(todayStr()+'T00:00:00');
   return Math.round((b-a)/86400000);
@@ -1985,7 +1987,9 @@ function openMatchReservation(id){
       </div>
       <div class="field full" style="margin-top:14px"><label>เลขที่บิลจริง (HS / IV) <span style="color:var(--red)">*</span></label>
         <input type="text" id="matchBillNo" placeholder="เช่น HS26006921"></div>
-      <p class="helper-text">เลขใบจองเดิมจะถูกเก็บไว้ในรายการและหมายเหตุ</p>
+      <div class="field full" style="margin-top:10px"><label>วันที่บันทึกบิล HS/IV (วันที่ที่ยอดนี้จะไปแสดงในหน้ายอดรวมเงินสด)</label>
+        <input type="date" id="matchDate" value="${todayStr()}"></div>
+      <p class="helper-text">เลขใบจองเดิมจะถูกเก็บไว้ในรายการและหมายเหตุ ส่วนหน้ารายงานการขายยังใช้วันที่ขายเดิม</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
@@ -2000,11 +2004,13 @@ async function confirmMatchReservation(id){
   if(!/^(HS|IV)/.test(bill) && !confirm('เลขที่บิลนี้ไม่ได้ขึ้นต้นด้วย HS หรือ IV จะไม่ถูกนับในหน้ายอด HS/IV — ต้องการจับคู่ต่อหรือไม่?')) return;
   const dup = DB.sales.find(x=>x.id!==id && !x.cancelled && !x.reservation && String(x.billNo||'').toUpperCase()===bill);
   if(dup && !confirm('มีรายการที่ใช้เลขบิล '+bill+' อยู่แล้ว (อาจเป็นการแบ่งชำระหรือจับคู่ซ้ำ) — ต้องการจับคู่ต่อหรือไม่?')) return;
-  const before = {billNo:r.billNo, note:r.note, reservation:r.reservation, reservationNo:r.reservationNo};
+  const matchDate = (document.getElementById('matchDate')||{}).value || todayStr();
+  const before = {billNo:r.billNo, note:r.note, reservation:r.reservation, reservationNo:r.reservationNo, cashDate:r.cashDate};
   const oldNo = r.billNo;
   r.reservationNo = oldNo;
   r.billNo = bill;
   r.reservation = false;
+  r.cashDate = matchDate;
   r.note = (r.note?r.note+' · ':'')+'ใบจองเลขที่ '+oldNo;
   try{ await saveSales(); }
   catch(e){ Object.assign(r, before); toast('จับคู่ไม่สำเร็จ กรุณาลองใหม่', true); return; }
@@ -2025,7 +2031,7 @@ function renderTab2(){
   if(TAB2_SUBVIEW==='RES') return renderReservationPending(availableViews, canManageCash);
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
 
-  const rows = DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto && !s.reservation);
+  const rows = DB.sales.filter(s=>cashDateOf(s)===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
   const total = rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   const hasAny = rows.length || manualRows.length;
@@ -2040,14 +2046,15 @@ function renderTab2(){
         <div class="card-title"><span class="type-chip ${typeClass}">${peakIcon(11)} ${TAB2_SUBVIEW}</span> สรุปเงินสด — ${fmtDate(date)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm no-print" onclick="printTab2Preview()">ดูตัวอย่าง / พิมพ์</button>
-          ${canManageCash?`<button class="btn btn-primary btn-sm no-print" onclick="openCashEntryForm()">+ เพิ่มรายการ</button>`:''}
+          ${canManageCash?`<button class="btn btn-outline btn-sm no-print" onclick="openImportSmallCash()">⬇ ดึงจากรายงานการขาย (&lt; 1,000)</button>
+          <button class="btn btn-primary btn-sm no-print" onclick="openCashEntryForm()">+ เพิ่มรายการ</button>`:''}
         </div>
       </div>
       <p class="helper-text" style="margin-top:0">แสดงรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ 1,000 บาท (จากหน้ารายงานการขาย) รวมกับรายการที่บัญชีเพิ่มเองโดยตรง</p>
       ${hasAny? `<div class="table-wrap"><table>
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th>${canManageCash?'<th class="no-print"></th>':''}</tr></thead>
         <tbody>
-          ${rows.map(r=>`<tr${r.cancelled?' class="no-print" style="opacity:0.65"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span>${r.reservationNo?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
+          ${rows.map(r=>`<tr${r.cancelled?' class="no-print" style="opacity:0.65"':''}><td>${fmtDate(cashDateOf(r))}${(r.cashDate&&r.cashDate!==r.date)?`<br><span class="helper-text" style="margin:0;font-size:10.5px">ขายวันที่ ${fmtDate(r.date)}</span>`:''}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td><span class="badge badge-${TAB2_SUBVIEW.toLowerCase()}">${escapeHtml(r.billNo)}</span>${r.reservationNo?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td>${canManageCash?'<td class="no-print"></td>':''}</tr>`).join('')}
           ${manualRows.map(e=>{
             const canEditThis = canManageCash && ((CURRENT.role==='admin'||CURRENT.role==='supervisor') || isWithinEditWindow(e.date));
             return `<tr${e.cancelled?' class="no-print" style="opacity:0.65"':''}>
@@ -2066,6 +2073,58 @@ function renderTab2(){
       </table></div>` : `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการในวันที่เลือก</div></div>`}
     </div>
   `;
+}
+window.__impSel = new Set(); window.__impShowOther = false;
+function openImportSmallCash(){ window.__impSel = new Set(); window.__impShowOther = false; renderImportSmallCash(); }
+function importCandidates(){
+  const date = getTab1FilterDateForTab2();
+  const type = TAB2_SUBVIEW;
+  return DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)<1000 && !s.cancelled && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id)
+    && (window.__impShowOther || String(s.billNo||'').toUpperCase().startsWith(type)))
+    .sort((a,b)=>String(a.billNo).localeCompare(String(b.billNo)));
+}
+function renderImportSmallCash(){
+  const date = getTab1FilterDateForTab2();
+  const list = importCandidates();
+  window.__impSel = new Set([...window.__impSel].filter(id=>list.some(s=>s.id===id)));
+  const total = list.filter(s=>window.__impSel.has(s.id)).reduce((a,b)=>a+Number(b.amount||0),0);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ดึงบิลเงินสด &lt; 1,000 เข้า ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p class="helper-text" style="margin-top:0">บิลเงินสดยอดต่ำกว่า 1,000 บาท ของวันที่ ${fmtDate(date)} จากหน้ารายงานการขาย เลือกบิลที่ต้องการนับเข้ายอด ${TAB2_SUBVIEW} (ระบบสร้างเป็นรายการที่บัญชีเพิ่มเอง และไม่ดึงซ้ำ)</p>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"><input type="checkbox" ${window.__impShowOther?'checked':''} onchange="window.__impShowOther=this.checked;renderImportSmallCash()" style="width:16px;height:16px"> <span style="font-size:13px">แสดงบิลที่เลขไม่ได้ขึ้นต้นด้วย ${TAB2_SUBVIEW} ด้วย (เช่น ไม่มีตัวอักษร HS/IV)</span></label>
+      ${list.length?`<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:6px">
+        ${list.map(s=>`<label style="display:flex;align-items:center;gap:10px;padding:7px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+          <input type="checkbox" ${window.__impSel.has(s.id)?'checked':''} onchange="toggleImportSel('${s.id}',this.checked)" style="width:16px;height:16px;flex-shrink:0">
+          <span style="flex:1;font-size:13px"><b>${escapeHtml(s.billNo)}</b> · ${escapeHtml(s.customerName)}<br><span class="helper-text" style="margin:0">สาขา ${escapeHtml(s.branch||'')}</span></span>
+          <span style="font-weight:600">฿${fmtMoney(s.amount)}</span></label>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:600"><span>เลือกแล้ว ${window.__impSel.size} บิล</span><span>รวม ฿${fmtMoney(total)}</span></div>`
+      :`<div class="empty-state">${peakIcon(26)}<div>ไม่มีบิลเงินสด &lt; 1,000 ที่ดึงได้ในวันนี้</div></div>`}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
+      ${list.length?`<button class="btn btn-primary" onclick="confirmImportSmallCash()">ดึงเข้า ${TAB2_SUBVIEW}</button>`:''}
+    </div>`);
+}
+function toggleImportSel(id,on){ if(on) window.__impSel.add(id); else window.__impSel.delete(id); renderImportSmallCash(); }
+async function confirmImportSmallCash(){
+  const ids = [...window.__impSel];
+  if(!ids.length){ toast('กรุณาเลือกบิลอย่างน้อย 1 บิล', true); return; }
+  const date = getTab1FilterDateForTab2();
+  const made = [];
+  ids.forEach(id=>{
+    const sl = DB.sales.find(x=>x.id===id);
+    if(!sl || isSaleImportedToCash(id)) return;
+    made.push({ id: uid(), type: TAB2_SUBVIEW, date, billNo: sl.billNo, customerName: sl.customerName, amount: Number(sl.amount)||0, bank:'', note:'ดึงจากรายงานการขาย', enteredBy: CURRENT.name, enteredById: CURRENT.id, createdAt: Date.now(), saleId: sl.id });
+  });
+  if(!made.length){ closeModal(); return; }
+  made.forEach(m=>DB.cashEntries.push(m));
+  try{ await saveCashEntries(); }
+  catch(e){ made.forEach(m=>{ const i=DB.cashEntries.indexOf(m); if(i>=0) DB.cashEntries.splice(i,1); }); toast('ดึงไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  made.forEach(m=>pushCashEntryUpsert(m));
+  closeModal(); renderShell();
+  toast('ดึงเข้า '+TAB2_SUBVIEW+' แล้ว '+made.length+' บิล');
 }
 function openCashEntryForm(editRecord){
   const e = editRecord || null;
@@ -2210,21 +2269,21 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const inRange = function(d){ return d>=fromDate && d<=toDate; };
   const sectionsHtml = types.map(type=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation);
+    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
-    const allRows = rows.concat(manualRows).filter(r=>!r.cancelled).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    const allRows = rows.concat(manualRows).filter(r=>!r.cancelled).sort((a,b)=> (cashDateOf(a)||'').localeCompare(cashDateOf(b)||''));
     const subTotal = allRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
     return `
       <h3 style="font-family:'Kanit';margin:14px 0 6px">${type}</h3>
       <div class="table-wrap"><table class="report-table">
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th></tr></thead>
-        <tbody>${allRows.length ? allRows.map(r=>`<tr${r.cancelled?' style="opacity:0.7"':''}><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
+        <tbody>${allRows.length ? allRows.map(r=>`<tr${r.cancelled?' style="opacity:0.7"':''}><td>${fmtDate(cashDateOf(r))}</td><td>${escapeHtml(r.customerName)}${cancelNote(r)}</td><td>${escapeHtml(r.billNo)}</td><td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td><td>${r.bank||'เงินสด'}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--ink-faint)">ไม่มีรายการ</td></tr>`}</tbody>
         <tfoot><tr style="font-weight:700"><td colspan="3">รวม ${type}</td><td style="text-align:right">${fmtMoney(subTotal)}</td><td></td></tr></tfoot>
       </table></div>
     `;
   }).join('');
   const grandTotal = types.reduce((sum,type)=>{
-    const rows = DB.sales.filter(s=>inRange(s.date) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation);
+    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     return sum + rows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
