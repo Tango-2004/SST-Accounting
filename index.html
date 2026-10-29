@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261029-34';
+const APP_VERSION = 'sst-build-20261029-36';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1987,9 +1987,9 @@ function openMatchReservation(id){
       </div>
       <div class="field full" style="margin-top:14px"><label>เลขที่บิลจริง (HS / IV) <span style="color:var(--red)">*</span></label>
         <input type="text" id="matchBillNo" placeholder="เช่น HS26006921"></div>
-      <div class="field full" style="margin-top:10px"><label>วันที่บันทึกบิล HS/IV (วันที่ที่ยอดนี้จะไปแสดงในหน้ายอดรวมเงินสด)</label>
-        <input type="date" id="matchDate" value="${todayStr()}"></div>
-      <p class="helper-text">เลขใบจองเดิมจะถูกเก็บไว้ในรายการและหมายเหตุ ส่วนหน้ารายงานการขายยังใช้วันที่ขายเดิม</p>
+      <div class="field full" style="margin-top:10px"><label>วันที่ที่รายการจะไปแสดงในหน้ายอดรวมเงินสด</label>
+        <input type="date" id="matchDate" value="${r.cashDate||r.date}"></div>
+      <p class="helper-text">ค่าเริ่มต้นคือวันที่ของใบจอง เปลี่ยนได้ถ้าต้องการให้ไปแสดงในวันอื่น เลขใบจองเดิมจะถูกเก็บไว้ในหมายเหตุ ส่วนหน้ารายงานการขายยังใช้วันที่ขายเดิม</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
@@ -2004,13 +2004,13 @@ async function confirmMatchReservation(id){
   if(!/^(HS|IV)/.test(bill) && !confirm('เลขที่บิลนี้ไม่ได้ขึ้นต้นด้วย HS หรือ IV จะไม่ถูกนับในหน้ายอด HS/IV — ต้องการจับคู่ต่อหรือไม่?')) return;
   const dup = DB.sales.find(x=>x.id!==id && !x.cancelled && !x.reservation && String(x.billNo||'').toUpperCase()===bill);
   if(dup && !confirm('มีรายการที่ใช้เลขบิล '+bill+' อยู่แล้ว (อาจเป็นการแบ่งชำระหรือจับคู่ซ้ำ) — ต้องการจับคู่ต่อหรือไม่?')) return;
-  const matchDate = (document.getElementById('matchDate')||{}).value || todayStr();
+  const matchDate = (document.getElementById('matchDate')||{}).value || r.date;
   const before = {billNo:r.billNo, note:r.note, reservation:r.reservation, reservationNo:r.reservationNo, cashDate:r.cashDate};
   const oldNo = r.billNo;
   r.reservationNo = oldNo;
   r.billNo = bill;
   r.reservation = false;
-  r.cashDate = matchDate;
+  r.cashDate = (matchDate!==r.date) ? matchDate : '';
   r.note = (r.note?r.note+' · ':'')+'ใบจองเลขที่ '+oldNo;
   try{ await saveSales(); }
   catch(e){ Object.assign(r, before); toast('จับคู่ไม่สำเร็จ กรุณาลองใหม่', true); return; }
