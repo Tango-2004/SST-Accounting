@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261029-39';
+const APP_VERSION = 'sst-build-20261103-40';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -2416,6 +2416,7 @@ function renderTab3(){
       <div class="card-header">
         <div class="card-title">${peakIcon()} ${CHECK_VIEW==='pending'?'รายการเช็ครอนำเข้าธนาคาร':CHECK_VIEW==='deposited'?'เช็คที่นำเข้าธนาคารแล้ว (รอผ่านเช็ค)':'ประวัติเช็ครับ'}</div>
         ${CHECK_VIEW==='pending'?`<button class="btn btn-primary btn-sm no-print" onclick="openCheckForm()">+ บันทึกเช็คใหม่</button>`:''}
+        ${CHECK_VIEW==='deposited'?`<button id="bulkClearBtn" class="btn btn-primary btn-sm no-print" onclick="openBulkCleared()">✓ ผ่านเช็คที่เลือก (<span id="bulkCnt">${[...window.__t3Sel].filter(id=>DB.checks.some(c=>c.id===id&&c.status==='deposited')).length}</span>)</button>`:''}
       </div>
       ${renderCheckTable(rows, CHECK_VIEW==='history')}
     </div>
@@ -2431,11 +2432,12 @@ function getCheckLists(){
 function renderCheckTable(list, isHistory){
   if(!list.length) return `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการ</div></div>`;
   return `<div class="table-wrap"><table>
-    <thead><tr><th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
+    <thead><tr>${(!isHistory && CHECK_VIEW==='deposited')?`<th class="no-print" style="width:34px"><input type="checkbox" title="เลือกทั้งหมด" onchange="toggleCheckSelAll(this.checked)" style="width:16px;height:16px"></th>`:''}<th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
     <tbody>${list.map(c=>{
       const canEditDelete = (CURRENT.role==='admin'||CURRENT.role==='supervisor') || (c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived));
       return `
       <tr>
+        ${(!isHistory && CHECK_VIEW==='deposited')?`<td class="no-print"><input type="checkbox" class="t3-sel" data-id="${c.id}" ${window.__t3Sel.has(c.id)?'checked':''} onchange="toggleCheckSel('${c.id}',this.checked)" style="width:16px;height:16px"></td>`:''}
         <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
         <td>${fmtDate(c.dateReceived)}</td>
         <td>${escapeHtml(c.company)}</td>
@@ -2522,6 +2524,50 @@ async function markDeposited(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
   c.status='deposited'; c.depositedDate = todayStr();
   await saveChecks(); pushCheckUpsert(c); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
+}
+window.__t3Sel = new Set();
+function bulkSelectedChecks(){
+  return DB.checks.filter(c=>c.status==='deposited' && window.__t3Sel.has(c.id));
+}
+function updateBulkCount(){
+  const el = document.getElementById('bulkCnt'); if(el) el.textContent = bulkSelectedChecks().length;
+}
+function toggleCheckSel(id,on){ if(on) window.__t3Sel.add(id); else window.__t3Sel.delete(id); updateBulkCount(); }
+function toggleCheckSelAll(on){
+  document.querySelectorAll('.t3-sel').forEach(cb=>{ cb.checked = on; if(on) window.__t3Sel.add(cb.dataset.id); else window.__t3Sel.delete(cb.dataset.id); });
+  updateBulkCount();
+}
+function openBulkCleared(){
+  const list = bulkSelectedChecks();
+  if(!list.length){ toast('กรุณาติ๊กเลือกเช็คที่ต้องการให้ผ่านก่อน', true); return; }
+  const total = list.reduce((a,b)=>a+Number(b.amount||0),0);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ผ่านเช็คหลายใบพร้อมกัน</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>วันที่ผ่านเช็ค (ใช้กับทุกใบที่เลือก)</label><input type="date" id="mcBulkDate" value="${todayStr()}"></div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:6px;margin-top:10px">
+        ${list.map(c=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:6px;border-bottom:1px solid var(--border);font-size:13px"><span><b>${escapeHtml(c.checkNo||'-')}</b> · ${escapeHtml(c.company||'')}<br><span class="helper-text" style="margin:0">${escapeHtml(c.bank||'')} · วันที่ในเช็ค ${fmtDate(c.checkDate)}</span></span><span style="font-weight:600;white-space:nowrap">฿${fmtMoney(c.amount)}</span></div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:700"><span>${list.length} ใบ</span><span>รวม ฿${fmtMoney(total)}</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="confirmBulkCleared()">ยืนยันผ่านเช็ค ${list.length} ใบ</button>
+    </div>`);
+}
+async function confirmBulkCleared(){
+  const list = bulkSelectedChecks();
+  if(!list.length){ closeModal(); return; }
+  const dateEl = document.getElementById('mcBulkDate');
+  const chosen = (dateEl && dateEl.value) ? dateEl.value : todayStr();
+  const before = list.map(c=>({c, status:c.status, clearedDate:c.clearedDate}));
+  list.forEach(c=>{ c.status='cleared'; c.clearedDate = chosen; });
+  try{ await saveChecks(); }
+  catch(e){ before.forEach(b=>{ b.c.status=b.status; b.c.clearedDate=b.clearedDate; }); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  list.forEach(c=>pushCheckUpsert(c));
+  window.__t3Sel = new Set();
+  closeModal(); renderShell();
+  toast('ผ่านเช็คแล้ว '+list.length+' ใบ — ย้ายไปประวัติเช็ครับ');
 }
 function markCleared(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
