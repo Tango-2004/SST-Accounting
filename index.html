@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261103-40';
+const APP_VERSION = 'sst-build-20261105-42';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -489,6 +489,7 @@ const PAY_TYPES = [
   {id:'deposit', label:'มัดจำ', icon:'📥', badge:'badge-deposit'},
   {id:'check', label:'เช็ค', icon:'🧾', badge:'badge-check'},
   {id:'unpaid', label:'ยังไม่ได้ชำระ', icon:'⏳', badge:'badge-unpaid'},
+  {id:'paid', label:'ชำระแล้ว', icon:'✅', badge:'badge-status-cleared'},
 ];
 const BANKS = ['KBANK','BBL'];
 const CHECK_BANKS = ['KBANK','BBL','SCB','KTB','BAY','TMBTHANACHART','GSB','CIMB','UOB'];
@@ -1115,6 +1116,7 @@ function renderTab1(){
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="openCombinePinkBills()">🌸 รวมบิลสีชมพู</button>
           <button class="btn btn-outline btn-sm" onclick="printReport('tab1PrintCard')">🖨 พิมพ์ตารางนี้</button>
+          ${TAB1_CUSTVIEW==='general'?`<button class="btn btn-outline btn-sm" onclick="openReceiveCredit()">💳 รับชำระจากลูกค้าเครดิต</button>`:''}
           <button class="btn btn-primary btn-sm" onclick="openSaleForm()">+ เพิ่มรายการ</button>
         </div>
       </div>
@@ -1180,7 +1182,7 @@ function renderTab1Table(){
           <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}${(r.contactName||r.contactPhone)?`<br><span class="helper-text" style="margin:0">${r.contactName?escapeHtml(r.contactName):''}${r.contactName&&r.contactPhone?' · ':''}${r.contactPhone?escapeHtml(r.contactPhone):''}</span>`:''}</td>
           <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}${r.reservation?` <span class="badge" style="font-size:10px;background:#FFF1D6;color:#9A5B00">📝 ใบจอง · รอจับคู่</span>`:''}${(!r.reservation&&r.reservationNo)?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
-          <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span></td>
+          <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span>${(r.paymentType==='paid'&&r.paidDate)?`<br><span class="helper-text" style="margin:0;font-size:10.5px">ชำระวันที่ ${fmtDate(r.paidDate)}${paidAtBranchNote(r)}</span>`:''}${r.receivesCreditId?`<br><span class="helper-text" style="margin:0;font-size:10.5px">รับชำระบิลเครดิต</span>`:''}</td>
           <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><span class="no-print">${slipUrlList(r.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน${arr.length>1?' '+(i+1):''}</a>`).join(' ')}</span>`:''}${r.checkId?`<br><span class="no-print helper-text" style="margin:0">🧾 เข้าหน้าเช็คแล้ว</span>`:''}</td>
           ${isCredit?`<td>${r.creditDays?r.creditDays+' วัน':'-'}</td>`:''}
           <td>${r.cancelled?`<b>เหตุผลยกเลิก:</b> ${escapeHtml(r.cancelReason||'-')}`:(r.note?escapeHtml(r.note):'-')}</td>
@@ -1323,15 +1325,18 @@ function openSaleForm(prefill, editRecord){
   const keepAttachments = !!window.__keepSlip;
   if(!keepAttachments){ window.__slipRemove = []; window.__slipImages = []; window.__saleCheckFull = null; window.__saleCheckThumb = null; }
   window.__keepSlip = false;
+  if(prefill.creditSaleId){ window.__receiveCreditId = prefill.creditSaleId; window.__receivePrefill = prefill; }
+  else if(!keepAttachments || e){ window.__receiveCreditId = null; window.__receivePrefill = null; }
   const date = e ? e.date : (getTab1FilterDate() || todayStr());
   if(!e && CURRENT.role!=='admin' && date < todayStr()){
     toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
   }
   const noValue = e ? e.no : (DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW).length+1);
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} ${e?'แก้ไขรายการขาย':(prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย')} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ${e?'แก้ไขรายการขาย':(prefill.creditSaleId?'รับชำระจากลูกค้าเครดิต':(prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย'))} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      ${prefill.billNo?`<div class="locked-notice">${peakIcon(13)} กำลังเพิ่มการชำระอีกช่องทางสำหรับบิลเลขที่ "${escapeHtml(prefill.billNo)}" — กรอกเฉพาะยอดและช่องทางที่เหลือ</div>`:''}
+      ${prefill.creditSaleId?`<div class="locked-notice">${peakIcon(13)} กำลังรับชำระบิลเครดิตเลขที่ "${escapeHtml(prefill.billNo)}" (${escapeHtml(prefill.creditBranch||'')}) — เลือกวิธีชำระ แล้วบันทึก บิลเครดิตเดิมจะถูกทำเครื่องหมาย "ชำระแล้ว" ให้อัตโนมัติ รายการนี้จะบันทึกเป็นสาขาและวันที่ของคุณตามปกติ</div>`:''}
+      ${(prefill.billNo&&!prefill.creditSaleId)?`<div class="locked-notice">${peakIcon(13)} กำลังเพิ่มการชำระอีกช่องทางสำหรับบิลเลขที่ "${escapeHtml(prefill.billNo)}" — กรอกเฉพาะยอดและช่องทางที่เหลือ</div>`:''}
       ${e?`<div class="locked-notice">${peakIcon(13)} กำลังแก้ไขรายการนี้ — แก้ไข/ลบได้เฉพาะภายในวันที่บันทึกเดิมเท่านั้น</div>`:''}
       <div class="form-grid">
         <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${noValue}"></div>
@@ -1352,7 +1357,7 @@ function openSaleForm(prefill, editRecord){
             <span style="font-size:13.5px">📝 ชำระด้วยใบจอง <span class="helper-text" style="margin:0;display:block">ติ๊กเมื่อยังไม่มีเลขบิล HS/IV — ให้กรอกเลขที่ใบจองในช่อง "เลขที่บิล" แล้วฝ่ายบัญชีจะจับคู่เป็นเลขบิลจริงให้ภายหลัง</span></span>
           </label>
         </div>
-        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01" value="${e?e.amount:''}"></div>
+        <div class="field"><label>ยอดเงิน (บาท)</label><input type="number" id="fAmount" placeholder="0.00" step="0.01" value="${e?e.amount:(prefill.amount||'')}"></div>
         <div class="field full">
           <label>ประเภทการชำระเงิน</label>
           <p class="helper-text" style="margin-top:0">ถ้าลูกค้าจ่ายมากกว่า 1 ช่องทาง (เช่น เงินสด + โอน) ให้บันทึกแยกเป็นคนละแถวโดยใช้เลขที่บิลเดียวกัน ระบบจะรวมยอดให้อัตโนมัติ</p>
@@ -1363,6 +1368,7 @@ function openSaleForm(prefill, editRecord){
         <div class="field" id="bankField" style="display:${e&&(e.paymentType==='transfer'||e.paymentType==='deposit')?'block':'none'}"><label>ธนาคาร</label>
           <select id="fBank"><option value="">เลือกธนาคาร</option>${BANKS.map(b=>`<option value="${b}" ${e&&e.bank===b?'selected':''}>${b}</option>`).join('')}</select>
         </div>
+        <div class="field" id="paidDateField" style="display:${window.__selectedPayType==='paid'?'block':'none'}"><label>วันที่ชำระแล้ว</label><input type="date" id="fPaidDate" value="${e&&e.paidDate?e.paidDate:todayStr()}"></div>
         <div class="field" id="depositMethodField" style="display:${window.__selectedPayType==='deposit'?'block':'none'}"><label>ชำระมัดจำด้วย ${(e&&e.paymentType==='deposit'&&!e.depositMethod)?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
           <select id="fDepositMethod" onchange="refreshSlipVisibility()"><option value="">เลือกวิธีชำระ</option><option value="cash" ${e&&e.depositMethod==='cash'?'selected':''}>เงินสด</option><option value="transfer" ${e&&e.depositMethod==='transfer'?'selected':''}>โอนจ่าย</option><option value="check" ${e&&e.depositMethod==='check'?'selected':''}>เช็ค</option><option value="credit_card" ${e&&e.depositMethod==='credit_card'?'selected':''}>บัตรเครดิต</option></select>
         </div>
@@ -1452,6 +1458,8 @@ function refreshSlipVisibility(){
   const dm = dmEl ? dmEl.value : '';
   const dmField = document.getElementById('depositMethodField');
   if(dmField) dmField.style.display = (t==='deposit') ? 'block' : 'none';
+  const pdf = document.getElementById('paidDateField');
+  if(pdf) pdf.style.display = (t==='paid') ? 'block' : 'none';
   const sf = document.getElementById('slipField');
   if(sf) sf.style.display = needsSlip(t, dm) ? 'block' : 'none';
   const cb = document.getElementById('saleCheckBlock');
@@ -1596,6 +1604,7 @@ function collectSaleForm(){
     creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
     pinkBill: document.getElementById('fPinkBill') ? document.getElementById('fPinkBill').checked : false,
     reservation: document.getElementById('fReservation') ? document.getElementById('fReservation').checked : false,
+    paidDate: (window.__selectedPayType==='paid') ? ((document.getElementById('fPaidDate')||{}).value || todayStr()) : '',
     depositMethod: (window.__selectedPayType==='deposit' && document.getElementById('fDepositMethod') && document.getElementById('fDepositMethod').value) ? document.getElementById('fDepositMethod').value : undefined,
   };
 }
@@ -1605,6 +1614,7 @@ function validateSale(f, chkIn){
   if(!f.amount || f.amount<=0) return {msg:'กรุณากรอกยอดเงินให้ถูกต้อง', field:'fAmount'};
   if(!f.paymentType) return {msg:'กรุณาเลือกประเภทการชำระเงิน', field:'payOptions'};
   if(f.paymentType==='transfer' && !f.bank) return {msg:'กรุณาเลือกธนาคาร', field:'fBank'};
+  if(f.paymentType==='paid' && !f.paidDate) return {msg:'กรุณาเลือกวันที่ชำระแล้ว', field:'fPaidDate'};
   const ex = window.__editingSaleId ? DB.sales.find(x=>x.id===window.__editingSaleId) : null;
   if(f.paymentType==='deposit' && !f.depositMethod){
     const legacyDeposit = ex && ex.paymentType==='deposit' && !ex.depositMethod;
@@ -1666,7 +1676,7 @@ function previewSale(){
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="window.__keepSlip=true;${window.__editingSaleId?`reopenEditSaleForm()`:`openSaleForm()`}">แก้ไข</button>
+      <button class="btn btn-outline" onclick="window.__keepSlip=true;${window.__editingSaleId?`reopenEditSaleForm()`:`openSaleForm(window.__receivePrefill||undefined)`}">แก้ไข</button>
       <button class="btn btn-primary" onclick="submitSale()">ยืนยันบันทึก</button>
     </div>
   `);
@@ -1694,6 +1704,7 @@ async function submitSale(){
     const isOwnToday = existing.employeeId===CURRENT.id && isWithinEditWindow(existing.date);
     if(!isAdmin && !isOwnToday){ toast('คุณแก้ไขได้เฉพาะรายการที่ตัวเองบันทึกในวันนี้หรือเมื่อวานเท่านั้น', true); return; }
     const updated = Object.assign({}, existing, f);
+    if(updated.paymentType!=='paid') updated.paidSaleId = '';
     if(updated.reservation) updated.reservationNo = updated.billNo;
     else if(existing.reservation) updated.reservationNo = '';
     const makeCheck = needsCheckEntry(updated.paymentType, updated.depositMethod) && !existing.checkId && chkIn;
@@ -1720,8 +1731,13 @@ async function submitSale(){
     return;
   }
 
+  if(window.__receiveCreditId){
+    const cs0 = DB.sales.find(x=>x.id===window.__receiveCreditId);
+    if(!cs0 || cs0.cancelled || cs0.paymentType!=='unpaid'){ toast('บิลเครดิตนี้ถูกชำระหรือยกเลิกไปแล้ว กรุณาตรวจสอบรายการอีกครั้ง', true); window.__receiveCreditId=null; window.__receivePrefill=null; return; }
+  }
   const rec = Object.assign({id:uid(), customerType:TAB1_CUSTVIEW, employeeId:CURRENT.id, employeeName:CURRENT.name, createdAt:Date.now()}, f);
   if(rec.reservation) rec.reservationNo = rec.billNo;
+  if(window.__receiveCreditId) rec.receivesCreditId = window.__receiveCreditId;
   const makeCheckNew = needsCheckEntry(rec.paymentType, rec.depositMethod) && !!chkIn;
   if(makeCheckNew) rec.checkId = uid();
   DB.sales.push(rec);
@@ -1733,6 +1749,7 @@ async function submitSale(){
     toast('บันทึกไม่สำเร็จ: '+(e&&e.message?e.message:'เกิดข้อผิดพลาด กรุณาลองใหม่'), true);
     return;
   }
+  if(rec.receivesCreditId){ await markCreditBillPaid(rec); window.__receiveCreditId = null; window.__receivePrefill = null; }
   renderShell();
   toast('บันทึกรายการเรียบร้อย');
   const slipsToUpload = needsSlip(rec.paymentType, rec.depositMethod) ? (window.__slipImages||[]).slice() : [];
@@ -1740,6 +1757,87 @@ async function submitSale(){
   pushSaleUpsert(rec).then(()=>{ if(slipsToUpload.length) uploadSlipsForSale(rec, slipsToUpload); });
   if(makeCheckNew) createCheckFromSale(rec, chkIn, saleCheckFull, saleCheckThumb);
   askSplitPayment(rec);
+}
+// ---------- รับชำระจากลูกค้าเครดิต ----------
+function paidAtBranchNote(r){
+  const rc = r.paidSaleId ? DB.sales.find(x=>x.id===r.paidSaleId) : null;
+  return (rc && rc.branch) ? ' · ที่สาขา '+escapeHtml(rc.branch) : '';
+}
+async function markCreditBillPaid(receipt){
+  const cs = DB.sales.find(x=>x.id===receipt.receivesCreditId);
+  if(!cs || cs.paymentType!=='unpaid') return;
+  cs.paymentType = 'paid'; cs.paidDate = receipt.date; cs.paidSaleId = receipt.id;
+  try{ await saveSales(); }catch(e){ console.error('markCreditBillPaid save failed', e); }
+  pushSaleUpsert(cs);
+}
+async function revertCreditBillOfReceipt(receipt){
+  if(!receipt || !receipt.receivesCreditId) return false;
+  const cs = DB.sales.find(x=>x.id===receipt.receivesCreditId);
+  if(!cs || cs.paymentType!=='paid' || cs.paidSaleId!==receipt.id) return false;
+  cs.paymentType = 'unpaid'; cs.paidDate = ''; cs.paidSaleId = '';
+  try{ await saveSales(); }catch(e){ console.error('revertCreditBill save failed', e); }
+  pushSaleUpsert(cs);
+  return true;
+}
+async function reapplyCreditBillOfReceipt(receipt){
+  if(!receipt || !receipt.receivesCreditId) return false;
+  const cs = DB.sales.find(x=>x.id===receipt.receivesCreditId);
+  if(!cs || cs.cancelled || cs.paymentType!=='unpaid') return false;
+  await markCreditBillPaid(receipt);
+  return true;
+}
+window.__recvQ = '';
+function openReceiveCredit(){ window.__recvQ = ''; renderReceiveCredit(); }
+function unpaidCreditBills(){
+  const q = (window.__recvQ||'').trim().toLowerCase();
+  return DB.sales.filter(x=>x.customerType==='credit' && x.paymentType==='unpaid' && !x.cancelled
+      && (!q || String(x.customerName||'').toLowerCase().includes(q) || String(x.billNo||'').toLowerCase().includes(q)))
+    .sort((a,b)=>(a.date<b.date?-1:a.date>b.date?1:0));
+}
+function creditDueDate(r){
+  if(!r.creditDays) return '';
+  const d = new Date(r.date+'T00:00:00'); d.setDate(d.getDate()+Number(r.creditDays));
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+dd;
+}
+function renderReceiveCredit(){
+  const list = unpaidCreditBills();
+  const today = todayStr();
+  const total = list.reduce((a,b)=>a+Number(b.amount||0),0);
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} รับชำระจากลูกค้าเครดิต</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p class="helper-text" style="margin-top:0">แสดงบิลเครดิตที่ยังไม่ได้ชำระของ <b>ทั้ง 2 สาขา</b> — เลือกบิลที่ลูกค้ามาชำระ แล้วบันทึกวิธีชำระตามปกติ (บันทึกเป็นสาขาและวันที่ของคุณ)</p>
+      <div class="field"><input type="text" id="recvSearch" placeholder="ค้นหาชื่อลูกค้า หรือเลขที่บิล" value="${escapeHtml(window.__recvQ||'')}" oninput="window.__recvQ=this.value;refreshReceiveList()"></div>
+      <div id="recvList">${receiveListHtml(list, today)}</div>
+      <div id="recvTotal" style="display:flex;justify-content:space-between;margin-top:10px;font-weight:600"><span>${list.length} บิลค้างชำระ</span><span>รวม ฿${fmtMoney(total)}</span></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">ปิด</button></div>`);
+}
+function receiveListHtml(list, today){
+  if(!list.length) return `<div class="empty-state">${peakIcon(26)}<div>ไม่มีบิลเครดิตค้างชำระ</div></div>`;
+  return `<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:9px">
+    ${list.map(r=>{
+      const due = creditDueDate(r); const over = due && due < today;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;font-size:13px"><b>${escapeHtml(r.customerName)}</b> · ${escapeHtml(r.billNo)}<br>
+          <span class="helper-text" style="margin:0">สาขา ${escapeHtml(r.branch||'')} · ลงวันที่ ${fmtDate(r.date)}${due?` · ครบกำหนด ${fmtDate(due)}`:''}</span>${over?` <span class="badge badge-unpaid" style="font-size:10px">เกินกำหนด</span>`:''}</div>
+        <div style="font-weight:600;white-space:nowrap">฿${fmtMoney(r.amount)}</div>
+        <button class="btn btn-primary btn-sm" onclick="pickCreditToPay('${r.id}')">รับชำระ</button>
+      </div>`; }).join('')}
+  </div>`;
+}
+function refreshReceiveList(){
+  const list = unpaidCreditBills();
+  const box = document.getElementById('recvList'); if(box) box.innerHTML = receiveListHtml(list, todayStr());
+  const tot = document.getElementById('recvTotal');
+  if(tot) tot.innerHTML = `<span>${list.length} บิลค้างชำระ</span><span>รวม ฿${fmtMoney(list.reduce((a,b)=>a+Number(b.amount||0),0))}</span>`;
+}
+function pickCreditToPay(id){
+  const r = DB.sales.find(x=>x.id===id);
+  if(!r || r.paymentType!=='unpaid' || r.cancelled){ toast('บิลนี้ถูกชำระหรือยกเลิกไปแล้ว', true); refreshReceiveList(); return; }
+  TAB1_CUSTVIEW = 'general';
+  openSaleForm({customerName:r.customerName, billNo:r.billNo, amount:r.amount, creditSaleId:r.id, creditBranch:r.branch});
 }
 function openCancelSaleForm(id, mode){
   const isDel = mode==='delete';
@@ -1805,6 +1903,7 @@ async function confirmCancelSale(id){
     }
   }
   pushSaleUpsert(rec);
+  if(rec.receivesCreditId){ if(await revertCreditBillOfReceipt(rec)) chkMsg += ' และคืนบิลเครดิตเดิมเป็น "ยังไม่ได้ชำระ"'; }
   const linkedEntries = DB.cashEntries.filter(e=>e.saleId===rec.id && !e.cancelled);
   if(linkedEntries.length){
     linkedEntries.forEach(e=>{ e.cancelled = true; e.cancelReason = reason; e.cancelledBy = CURRENT.name; e.cancelledAt = Date.now(); });
@@ -1825,6 +1924,7 @@ async function uncancelSale(id){
   rec.cancelReason = '';
   await saveSales();
   pushSaleUpsert(rec);
+  if(rec.receivesCreditId){ await reapplyCreditBillOfReceipt(rec); }
   const backEntries = DB.cashEntries.filter(e=>e.saleId===rec.id && e.cancelled);
   if(backEntries.length){
     backEntries.forEach(e=>{ e.cancelled = false; e.cancelReason = ''; });
