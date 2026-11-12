@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261105-42';
+const APP_VERSION = 'sst-build-20261112-43';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1003,7 +1003,7 @@ function renderContent(){
   const titles = {
     dashboard:['ภาพรวม','สรุปข้อมูลวันนี้ในบริษัท'],
     tab1:['รายงานการขาย','บันทึกรายการขายประจำวันแยกตามสาขา'],
-    tab2:['ยอดรวมเงินสด (HS / IV)','เงินสด ≥ 1,000 บาท แยกตามเลขที่บิล'],
+    tab2:['ยอดรวมเงินสด (HS / IV)','เงินสด ≥ 10,000 บาท แยกตามเลขที่บิล (ก่อน 12 พ.ย. 2569 ใช้ ≥ 1,000 บาท)'],
     tab3:['เช็ครับลูกหนี้','บันทึกและติดตามเช็คที่รับจากลูกค้า'],
     tab3cal:['ปฏิทินเช็ครับ','แจ้งเตือนก่อนถึงกำหนดนำเช็คเข้าธนาคาร 10 วัน'],
     settings:['ตั้งค่าสิทธิ์','จัดการพนักงานและสิทธิ์การเข้าถึง'],
@@ -2046,6 +2046,10 @@ function cancelNote(r){
   return `<br><span class="badge badge-unpaid" style="font-size:10px">✕ ลบ/ยกเลิกแล้ว</span> <span class="helper-text" style="margin:0">เหตุผล: ${escapeHtml(r.cancelReason||'-')}${r.cancelledBy?' · โดย '+escapeHtml(r.cancelledBy):''}</span>`;
 }
 const RES_WARN_DAYS = 3;
+// เกณฑ์ยอดเงินสดที่เข้าหน้ายอดรวมเงินสด (HS/IV): ก่อน 12 พ.ย. 2569 = 1,000 / ตั้งแต่ 12 พ.ย. 2569 = 10,000
+const CASH_THRESHOLD_NEW_FROM = '2026-11-12';
+function cashThresholdFor(dateStr){ return (dateStr && dateStr >= CASH_THRESHOLD_NEW_FROM) ? 10000 : 1000; }
+function fmtMoney0(n){ return Number(n).toLocaleString('en-US'); }
 function cashOut(x){ return !!(x.cancelled || x.cashExcluded); }
 function cashDateOf(x){ return x.cashDate || x.date; }
 function isSaleImportedToCash(id){ return DB.cashEntries.some(e=>e.saleId===id && !e.cancelled); }
@@ -2142,7 +2146,7 @@ function renderTab2(){
   if(TAB2_SUBVIEW==='RES') return renderReservationPending(availableViews, canManageCash);
   const typeClass = TAB2_SUBVIEW==='HS' ? 'type-hs' : 'type-iv';
 
-  const rows = DB.sales.filter(s=>cashDateOf(s)===date && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
+  const rows = DB.sales.filter(s=>cashDateOf(s)===date && s.paymentType==='cash' && Number(s.amount)>=cashThresholdFor(cashDateOf(s)) && String(s.billNo||'').toUpperCase().startsWith(TAB2_SUBVIEW) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
   const manualRows = DB.cashEntries.filter(e=>e.date===date && e.type===TAB2_SUBVIEW);
   const total = rows.filter(r=>!cashOut(r)).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   const hasAny = rows.length || manualRows.length;
@@ -2157,11 +2161,11 @@ function renderTab2(){
         <div class="card-title"><span class="type-chip ${typeClass}">${peakIcon(11)} ${TAB2_SUBVIEW}</span> สรุปเงินสด — ${fmtDate(date)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm no-print" onclick="printTab2Preview()">ดูตัวอย่าง / พิมพ์</button>
-          ${canManageCash?`<button class="btn btn-outline btn-sm no-print" onclick="openImportSmallCash()">⬇ ดึงจากรายงานการขาย (&lt; 1,000)</button>
+          ${canManageCash?`<button class="btn btn-outline btn-sm no-print" onclick="openImportSmallCash()">⬇ ดึงจากรายงานการขาย (&lt; ${fmtMoney0(cashThresholdFor(getTab1FilterDateForTab2()))})</button>
           <button class="btn btn-primary btn-sm no-print" onclick="openCashEntryForm()">+ เพิ่มรายการ</button>`:''}
         </div>
       </div>
-      <p class="helper-text" style="margin-top:0">แสดงรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ 1,000 บาท (จากหน้ารายงานการขาย) รวมกับรายการที่บัญชีเพิ่มเองโดยตรง</p>
+      <p class="helper-text" style="margin-top:0">แสดงรายการที่เลขที่บิลขึ้นต้นด้วย "${TAB2_SUBVIEW}" และชำระเป็นเงินสด ≥ ${fmtMoney0(cashThresholdFor(date))} บาท (จากหน้ารายงานการขาย) รวมกับรายการที่บัญชีเพิ่มเองโดยตรง</p>
       ${hasAny? `<div class="table-wrap"><table>
         <thead><tr><th>วันที่</th><th>ชื่อลูกค้า</th><th>เลขที่บิล</th><th style="text-align:right">ยอดเงิน</th><th>ธนาคาร</th>${canManageCash?'<th class="no-print"></th>':''}</tr></thead>
         <tbody>
@@ -2224,7 +2228,7 @@ function openImportSmallCash(){ window.__impSel = new Set(); window.__impShowOth
 function importCandidates(){
   const date = getTab1FilterDateForTab2();
   const type = TAB2_SUBVIEW;
-  return DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)<1000 && !s.cancelled && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id)
+  return DB.sales.filter(s=>s.date===date && s.paymentType==='cash' && Number(s.amount)<cashThresholdFor(date) && !s.cancelled && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id)
     && (window.__impShowOther || String(s.billNo||'').toUpperCase().startsWith(type)))
     .sort((a,b)=>String(a.billNo).localeCompare(String(b.billNo)));
 }
@@ -2234,9 +2238,9 @@ function renderImportSmallCash(){
   window.__impSel = new Set([...window.__impSel].filter(id=>list.some(s=>s.id===id)));
   const total = list.filter(s=>window.__impSel.has(s.id)).reduce((a,b)=>a+Number(b.amount||0),0);
   openModal(`
-    <div class="modal-header"><div class="modal-title">${peakIcon()} ดึงบิลเงินสด &lt; 1,000 เข้า ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">${peakIcon()} ดึงบิลเงินสด &lt; ${fmtMoney0(cashThresholdFor(date))} เข้า ${TAB2_SUBVIEW}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      <p class="helper-text" style="margin-top:0">บิลเงินสดยอดต่ำกว่า 1,000 บาท ของวันที่ ${fmtDate(date)} จากหน้ารายงานการขาย เลือกบิลที่ต้องการนับเข้ายอด ${TAB2_SUBVIEW} (ระบบสร้างเป็นรายการที่บัญชีเพิ่มเอง และไม่ดึงซ้ำ)</p>
+      <p class="helper-text" style="margin-top:0">บิลเงินสดยอดต่ำกว่า ${fmtMoney0(cashThresholdFor(date))} บาท ของวันที่ ${fmtDate(date)} จากหน้ารายงานการขาย เลือกบิลที่ต้องการนับเข้ายอด ${TAB2_SUBVIEW} (ระบบสร้างเป็นรายการที่บัญชีเพิ่มเอง และไม่ดึงซ้ำ)</p>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"><input type="checkbox" ${window.__impShowOther?'checked':''} onchange="window.__impShowOther=this.checked;renderImportSmallCash()" style="width:16px;height:16px"> <span style="font-size:13px">แสดงบิลที่เลขไม่ได้ขึ้นต้นด้วย ${TAB2_SUBVIEW} ด้วย (เช่น ไม่มีตัวอักษร HS/IV)</span></label>
       ${list.length?`<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:6px">
         ${list.map(s=>`<label style="display:flex;align-items:center;gap:10px;padding:7px 6px;border-bottom:1px solid var(--border);cursor:pointer">
@@ -2245,7 +2249,7 @@ function renderImportSmallCash(){
           <span style="font-weight:600">฿${fmtMoney(s.amount)}</span></label>`).join('')}
       </div>
       <div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:600"><span>เลือกแล้ว ${window.__impSel.size} บิล</span><span>รวม ฿${fmtMoney(total)}</span></div>`
-      :`<div class="empty-state">${peakIcon(26)}<div>ไม่มีบิลเงินสด &lt; 1,000 ที่ดึงได้ในวันนี้</div></div>`}
+      :`<div class="empty-state">${peakIcon(26)}<div>ไม่มีบิลเงินสด &lt; ${fmtMoney0(cashThresholdFor(date))} ที่ดึงได้ในวันนี้</div></div>`}
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
@@ -2414,7 +2418,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
   const types = ['HS','IV'].filter(k=>myAccess[k]);
   const inRange = function(d){ return d>=fromDate && d<=toDate; };
   const sectionsHtml = types.map(type=>{
-    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
+    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=cashThresholdFor(cashDateOf(s)) && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     const allRows = rows.concat(manualRows).filter(r=>!cashOut(r)).sort((a,b)=> (cashDateOf(a)||'').localeCompare(cashDateOf(b)||''));
     const subTotal = allRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
@@ -2428,7 +2432,7 @@ function buildTab2PreviewHtml(fromDate, toDate){
     `;
   }).join('');
   const grandTotal = types.reduce((sum,type)=>{
-    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=1000 && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
+    const rows = DB.sales.filter(s=>inRange(cashDateOf(s)) && s.paymentType==='cash' && Number(s.amount)>=cashThresholdFor(cashDateOf(s)) && String(s.billNo||'').toUpperCase().startsWith(type) && !s.combinedInto && !s.reservation && !isSaleImportedToCash(s.id));
     const manualRows = DB.cashEntries.filter(e=>inRange(e.date) && e.type===type);
     return sum + rows.filter(r=>!cashOut(r)).reduce((a,b)=>a+Number(b.amount||0),0) + manualRows.filter(r=>!r.cancelled).reduce((a,b)=>a+Number(b.amount||0),0);
   }, 0);
@@ -2509,6 +2513,7 @@ function renderTab3(){
     <div class="pill-tabs no-print" style="margin-bottom:16px">
       <button class="pill-tab ${CHECK_VIEW==='pending'?'active':''}" onclick="CHECK_VIEW='pending';renderShell()">รอนำเข้าธนาคาร (${lists.pending.length})</button>
       <button class="pill-tab ${CHECK_VIEW==='deposited'?'active':''}" onclick="CHECK_VIEW='deposited';renderShell()">ผ่านเช็ครับ (${lists.deposited.length})</button>
+      <button class="pill-tab ${CHECK_VIEW==='today'?'active':''}" onclick="CHECK_VIEW='today';renderShell()">ผ่านเช็ควันนี้ (${lists.today.length})</button>
       <button class="pill-tab ${CHECK_VIEW==='history'?'active':''}" onclick="CHECK_VIEW='history';renderShell()">ประวัติเช็ครับ (${lists.history.length})</button>
     </div>
     ${filterBar}
@@ -2516,28 +2521,34 @@ function renderTab3(){
       <div class="card-header">
         <div class="card-title">${peakIcon()} ${CHECK_VIEW==='pending'?'รายการเช็ครอนำเข้าธนาคาร':CHECK_VIEW==='deposited'?'เช็คที่นำเข้าธนาคารแล้ว (รอผ่านเช็ค)':'ประวัติเช็ครับ'}</div>
         ${CHECK_VIEW==='pending'?`<button class="btn btn-primary btn-sm no-print" onclick="openCheckForm()">+ บันทึกเช็คใหม่</button>`:''}
+        ${CHECK_VIEW==='today'?`<button id="bulkClearBtn" class="btn btn-primary btn-sm no-print" onclick="openBulkEditClearedDate()">📅 แก้วันที่ผ่านที่เลือก (<span id="bulkCnt">${[...window.__t3Sel].filter(id=>DB.checks.some(c=>c.id===id&&c.status==='cleared')).length}</span>)</button>`:''}
         ${CHECK_VIEW==='deposited'?`<button id="bulkClearBtn" class="btn btn-primary btn-sm no-print" onclick="openBulkCleared()">✓ ผ่านเช็คที่เลือก (<span id="bulkCnt">${[...window.__t3Sel].filter(id=>DB.checks.some(c=>c.id===id&&c.status==='deposited')).length}</span>)</button>`:''}
       </div>
-      ${renderCheckTable(rows, CHECK_VIEW==='history')}
+      ${renderCheckTable(rows, CHECK_VIEW==='history'||CHECK_VIEW==='today')}
     </div>
   `;
+}
+function dateStrOfTs(ts){
+  const d = new Date(Number(ts)); if(isNaN(d)) return '';
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function getCheckLists(){
   return {
     pending: DB.checks.filter(c=>c.status==='pending_deposit'),
     deposited: DB.checks.filter(c=>c.status==='deposited'),
     history: DB.checks.filter(c=>c.status==='cleared'),
+    today: DB.checks.filter(c=>c.status==='cleared' && c.clearedAt && dateStrOfTs(c.clearedAt)===todayStr()),
   };
 }
 function renderCheckTable(list, isHistory){
   if(!list.length) return `<div class="empty-state">${peakIcon(26)}<div>ไม่มีรายการ</div></div>`;
   return `<div class="table-wrap"><table>
-    <thead><tr>${(!isHistory && CHECK_VIEW==='deposited')?`<th class="no-print" style="width:34px"><input type="checkbox" title="เลือกทั้งหมด" onchange="toggleCheckSelAll(this.checked)" style="width:16px;height:16px"></th>`:''}<th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
+    <thead><tr>${(CHECK_VIEW==='deposited'||CHECK_VIEW==='today')?`<th class="no-print" style="width:34px"><input type="checkbox" title="เลือกทั้งหมด" onchange="toggleCheckSelAll(this.checked)" style="width:16px;height:16px"></th>`:''}<th>รูปเช็ค</th><th>วันที่รับ</th><th>บริษัท</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th><th>เลขที่เช็ค</th><th>วันที่ในเช็ค</th>${isHistory?'<th>วันที่ผ่านเช็ค</th>':''}<th>สาขา</th><th>หมายเหตุ</th><th class="no-print">การจัดการ</th></tr></thead>
     <tbody>${list.map(c=>{
       const canEditDelete = (CURRENT.role==='admin'||CURRENT.role==='supervisor') || (c.enteredBy===CURRENT.id && isWithinEditWindow(c.dateReceived));
       return `
       <tr>
-        ${(!isHistory && CHECK_VIEW==='deposited')?`<td class="no-print"><input type="checkbox" class="t3-sel" data-id="${c.id}" ${window.__t3Sel.has(c.id)?'checked':''} onchange="toggleCheckSel('${c.id}',this.checked)" style="width:16px;height:16px"></td>`:''}
+        ${(CHECK_VIEW==='deposited'||CHECK_VIEW==='today')?`<td class="no-print"><input type="checkbox" class="t3-sel" data-id="${c.id}" ${window.__t3Sel.has(c.id)?'checked':''} onchange="toggleCheckSel('${c.id}',this.checked)" style="width:16px;height:16px"></td>`:''}
         <td>${c.thumb||c.imageData?`<img class="check-thumb" src="${c.thumb||c.imageData}" onclick="viewCheckImage('${c.id}')">`:'-'}</td>
         <td>${fmtDate(c.dateReceived)}</td>
         <td>${escapeHtml(c.company)}</td>
@@ -2551,7 +2562,8 @@ function renderCheckTable(list, isHistory){
         <td class="no-print check-list-actions">
           ${c.status==='pending_deposit'?`<button class="btn btn-outline btn-sm" onclick="markDeposited('${c.id}')">✓ นำเข้าธนาคารแล้ว</button>`:''}
           ${c.status==='deposited'?`<button class="btn btn-primary btn-sm" onclick="markCleared('${c.id}')">✓ ผ่านเช็คแล้ว</button>`:''}
-          ${c.status==='cleared'?`<button class="btn btn-outline btn-sm" onclick="returnCheck('${c.id}')">↩ คืนเช็ค</button>`:''}
+          ${(c.status==='cleared' && CHECK_VIEW==='today')?`<button class="btn btn-outline btn-sm" onclick="editClearedDate('${c.id}')">📅 แก้วันที่ผ่าน</button><button class="btn btn-ghost btn-sm" onclick="undoCleared('${c.id}')">↩ ย้อนกลับ</button>`:''}
+          ${(c.status==='cleared' && CHECK_VIEW!=='today')?`<button class="btn btn-outline btn-sm" onclick="returnCheck('${c.id}')">↩ คืนเช็ค</button>`:''}
           ${canEditDelete?`<button class="btn btn-outline btn-sm" onclick="editCheck('${c.id}')">แก้ไข</button>`:''}
           ${canEditDelete?`<button class="btn btn-ghost btn-sm" onclick="deleteCheck('${c.id}')">ลบ</button>`:''}
         </td>
@@ -2626,8 +2638,9 @@ async function markDeposited(id){
   await saveChecks(); pushCheckUpsert(c); renderShell(); toast('บันทึกว่านำเช็คเข้าธนาคารแล้ว');
 }
 window.__t3Sel = new Set();
-function bulkSelectedChecks(){
-  return DB.checks.filter(c=>c.status==='deposited' && window.__t3Sel.has(c.id));
+function bulkSelectedChecks(st){
+  const status = st || (CHECK_VIEW==='today' ? 'cleared' : 'deposited');
+  return DB.checks.filter(c=>c.status===status && window.__t3Sel.has(c.id));
 }
 function updateBulkCount(){
   const el = document.getElementById('bulkCnt'); if(el) el.textContent = bulkSelectedChecks().length;
@@ -2661,13 +2674,60 @@ async function confirmBulkCleared(){
   const dateEl = document.getElementById('mcBulkDate');
   const chosen = (dateEl && dateEl.value) ? dateEl.value : todayStr();
   const before = list.map(c=>({c, status:c.status, clearedDate:c.clearedDate}));
-  list.forEach(c=>{ c.status='cleared'; c.clearedDate = chosen; });
+  list.forEach(c=>{ c.status='cleared'; c.clearedDate = chosen; c.clearedAt = Date.now(); });
   try{ await saveChecks(); }
-  catch(e){ before.forEach(b=>{ b.c.status=b.status; b.c.clearedDate=b.clearedDate; }); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  catch(e){ before.forEach(b=>{ b.c.status=b.status; b.c.clearedDate=b.clearedDate; b.c.clearedAt=''; }); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
   list.forEach(c=>pushCheckUpsert(c));
   window.__t3Sel = new Set();
   closeModal(); renderShell();
   toast('ผ่านเช็คแล้ว '+list.length+' ใบ — ย้ายไปประวัติเช็ครับ');
+}
+function editClearedDate(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c) return;
+  window.__t3Sel = new Set([id]);
+  openBulkEditClearedDate();
+}
+function openBulkEditClearedDate(){
+  const list = bulkSelectedChecks('cleared');
+  if(!list.length){ toast('กรุณาติ๊กเลือกเช็คที่ต้องการแก้วันที่ผ่านก่อน', true); return; }
+  const total = list.reduce((a,b)=>a+Number(b.amount||0),0);
+  const first = list[0].clearedDate || todayStr();
+  openModal(`
+    <div class="modal-header"><div class="modal-title">${peakIcon()} แก้วันที่ผ่านเช็ค</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>วันที่ผ่านเช็คใหม่ (ใช้กับทุกใบที่เลือก)</label><input type="date" id="mcEditDate" value="${first}"></div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:6px;margin-top:10px">
+        ${list.map(c=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:6px;border-bottom:1px solid var(--border);font-size:13px"><span><b>${escapeHtml(c.checkNo||'-')}</b> · ${escapeHtml(c.company||'')}<br><span class="helper-text" style="margin:0">วันที่ผ่านตอนนี้ ${fmtDate(c.clearedDate)}</span></span><span style="font-weight:600;white-space:nowrap">฿${fmtMoney(c.amount)}</span></div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:700"><span>${list.length} ใบ</span><span>รวม ฿${fmtMoney(total)}</span></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button><button class="btn btn-primary" onclick="confirmBulkEditClearedDate()">บันทึกวันที่ใหม่</button></div>`);
+}
+async function confirmBulkEditClearedDate(){
+  const list = bulkSelectedChecks('cleared');
+  if(!list.length){ closeModal(); return; }
+  const nd = (document.getElementById('mcEditDate')||{}).value;
+  if(!nd){ toast('กรุณาเลือกวันที่', true); return; }
+  const before = list.map(c=>({c, d:c.clearedDate}));
+  list.forEach(c=>{ c.clearedDate = nd; });
+  try{ await saveChecks(); }
+  catch(e){ before.forEach(b=>{ b.c.clearedDate=b.d; }); toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  list.forEach(c=>pushCheckUpsert(c));
+  window.__t3Sel = new Set();
+  closeModal(); renderShell();
+  toast('แก้วันที่ผ่านเช็คแล้ว '+list.length+' ใบ');
+}
+async function undoCleared(id){
+  const c = DB.checks.find(x=>x.id===id); if(!c || c.status!=='cleared') return;
+  if(!confirm('ย้อนกลับเช็คเลขที่ '+(c.checkNo||'-')+' ไปเป็น "ผ่านเช็ครับ (รอผ่านเช็ค)" ใช่ไหม?')) return;
+  const prev = {status:c.status, clearedDate:c.clearedDate, clearedAt:c.clearedAt};
+  c.status='deposited'; c.clearedDate=null; c.clearedAt='';
+  try{ await saveChecks(); }
+  catch(e){ Object.assign(c, prev); toast('ย้อนกลับไม่สำเร็จ กรุณาลองใหม่', true); return; }
+  pushCheckUpsert(c);
+  window.__t3Sel.delete(id);
+  renderShell();
+  toast('ย้อนกลับเช็คไปเป็น "ผ่านเช็ครับ" แล้ว');
 }
 function markCleared(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
@@ -2686,7 +2746,7 @@ async function confirmMarkCleared(id){
   const c = DB.checks.find(x=>x.id===id); if(!c) return;
   const dateEl = document.getElementById('mcClearedDate');
   const chosenDate = (dateEl && dateEl.value) ? dateEl.value : todayStr();
-  c.status='cleared'; c.clearedDate = chosenDate;
+  c.status='cleared'; c.clearedDate = chosenDate; c.clearedAt = Date.now();
   await saveChecks(); pushCheckUpsert(c); closeModal(); renderShell(); toast('ย้ายไปประวัติเช็ครับแล้ว');
 }
 function returnCheck(id){
@@ -2708,6 +2768,7 @@ async function confirmReturnCheck(id){
   const newDate = document.getElementById('rcNewDate').value;
   c.status='pending_deposit';
   c.clearedDate=null;
+  c.clearedAt='';
   c.depositedDate=null;
   if(newDate) c.checkDate = newDate;
   await saveChecks();
