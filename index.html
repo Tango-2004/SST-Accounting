@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261112-43';
+const APP_VERSION = 'sst-build-20261113-44';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -502,7 +502,7 @@ const TABS = [
   {id:'settings', label:'ตั้งค่าสิทธิ์', group:'ผู้ดูแลระบบ', adminOnly:true},
 ];
 
-let DB = { users: [], sales: [], checks: [], branches: [], cashEntries: [] };
+let DB = { users: [], sales: [], checks: [], branches: [], cashEntries: [], cashThresholds: null };
 let CURRENT = null;
 let ACTIVE_TAB = 'dashboard';
 let TAB2_SUBVIEW = 'HS';
@@ -537,7 +537,7 @@ function lsSet(key, value){
     }
   }
 }
-let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0, lastCashEntriesWriteAt = 0;
+let lastSalesWriteAt = 0, lastChecksWriteAt = 0, lastUsersWriteAt = 0, lastBranchesWriteAt = 0, lastCashEntriesWriteAt = 0, lastThresholdWriteAt = 0;
 const WRITE_COOLDOWN_MS = 20000;
 
 async function loadDB(){
@@ -546,6 +546,7 @@ async function loadDB(){
   const c = await safeGet('sst_checks');
   const b = await safeGet('sst_branches');
   const ce = await safeGet('sst_cashentries');
+  DB.cashThresholds = await safeGet('sst_cash_thresholds');
   DB.users = u || defaultUsers();
   DB.sales = s || [];
   DB.checks = c || [];
@@ -574,6 +575,12 @@ async function loadDB(){
           if(remoteBranches.length > 0 || DB.branches.length === 0){
             DB.branches = remoteBranches; lsSet('sst_branches', DB.branches);
           }
+        }
+        if(json.cashThresholds && (Date.now()-lastThresholdWriteAt > WRITE_COOLDOWN_MS)){
+          try{
+            const rt = JSON.parse(json.cashThresholds);
+            if(Array.isArray(rt) && rt.length){ DB.cashThresholds = rt; lsSet('sst_cash_thresholds', rt); }
+          }catch(e){ console.warn('bad cashThresholds config', e); }
         }
         if(json.sales){
           const withinCooldown = (Date.now()-lastSalesWriteAt <= WRITE_COOLDOWN_MS);
@@ -1003,7 +1010,7 @@ function renderContent(){
   const titles = {
     dashboard:['ภาพรวม','สรุปข้อมูลวันนี้ในบริษัท'],
     tab1:['รายงานการขาย','บันทึกรายการขายประจำวันแยกตามสาขา'],
-    tab2:['ยอดรวมเงินสด (HS / IV)','เงินสด ≥ 10,000 บาท แยกตามเลขที่บิล (ก่อน 12 พ.ย. 2569 ใช้ ≥ 1,000 บาท)'],
+    tab2:['ยอดรวมเงินสด (HS / IV)','เงินสด ≥ '+fmtMoney0(cashThresholdFor(todayStr()))+' บาท แยกตามเลขที่บิล (เกณฑ์ตามวันที่ของแต่ละรายการ)'],
     tab3:['เช็ครับลูกหนี้','บันทึกและติดตามเช็คที่รับจากลูกค้า'],
     tab3cal:['ปฏิทินเช็ครับ','แจ้งเตือนก่อนถึงกำหนดนำเช็คเข้าธนาคาร 10 วัน'],
     settings:['ตั้งค่าสิทธิ์','จัดการพนักงานและสิทธิ์การเข้าถึง'],
@@ -2047,8 +2054,23 @@ function cancelNote(r){
 }
 const RES_WARN_DAYS = 3;
 // เกณฑ์ยอดเงินสดที่เข้าหน้ายอดรวมเงินสด (HS/IV): ก่อน 12 พ.ย. 2569 = 1,000 / ตั้งแต่ 12 พ.ย. 2569 = 10,000
-const CASH_THRESHOLD_NEW_FROM = '2026-11-12';
-function cashThresholdFor(dateStr){ return (dateStr && dateStr >= CASH_THRESHOLD_NEW_FROM) ? 10000 : 1000; }
+// เกณฑ์ยอดเงินสดที่เข้าหน้ายอดรวมเงินสด (HS/IV) — มีประวัติตามวันที่เริ่มใช้ แอดมินปรับได้ที่หน้าตั้งค่า
+const DEFAULT_CASH_THRESHOLDS = [{from:'0000-01-01', amount:1000}, {from:'2026-11-12', amount:10000}];
+function getCashThresholds(){
+  const t = (DB.cashThresholds && DB.cashThresholds.length) ? DB.cashThresholds : DEFAULT_CASH_THRESHOLDS;
+  return [...t].sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+}
+function cashThresholdFor(dateStr){
+  const d = dateStr || todayStr();
+  let amt = 1000;
+  getCashThresholds().forEach(t=>{ if(String(t.from) <= d) amt = Number(t.amount); });
+  return amt;
+}
+async function saveCashThresholds(){
+  lastThresholdWriteAt = Date.now();
+  await cloudSet('sst_cash_thresholds', DB.cashThresholds);
+  await pushConfigToSheets('cashThresholds', DB.cashThresholds, true);
+}
 function fmtMoney0(n){ return Number(n).toLocaleString('en-US'); }
 function cashOut(x){ return !!(x.cancelled || x.cashExcluded); }
 function cashDateOf(x){ return x.cashDate || x.date; }
@@ -3033,6 +3055,61 @@ function openCalDay(dateStr){
   `);
 }
 
+function renderThresholdSettings(){
+  const list = getCashThresholds();
+  const today = todayStr();
+  const cur = cashThresholdFor(today);
+  return `<div class="card settings-block">
+    <div class="card-header"><div class="card-title">${peakIcon()} เกณฑ์เงินสดที่เข้าหน้ายอดรวมเงินสด (HS / IV)</div></div>
+    <p class="helper-text" style="margin-top:0">บิลเงินสดที่ยอด ≥ เกณฑ์ จะขึ้นหน้ายอดรวมเงินสดอัตโนมัติ ตอนนี้ใช้เกณฑ์ <b>${fmtMoney0(cur)} บาท</b> ตั้งเกณฑ์ใหม่ได้โดยระบุวันที่เริ่มใช้ (วันนี้เป็นต้นไป) วันที่ผ่านมาแล้วจะใช้เกณฑ์เดิมตามประวัติ ไม่เปลี่ยน</p>
+    ${list.map((t,i)=>{
+      const next = list[i+1];
+      const active = String(t.from) <= today && (!next || String(next.from) > today);
+      const isFuture = String(t.from) > today;
+      return `<div class="emp-row">
+        <div class="emp-meta"><div class="emp-name">฿ ${fmtMoney0(t.amount)} ${active?'<span class="badge badge-status-cleared">ใช้อยู่ตอนนี้</span>':''}${isFuture?' <span class="badge badge-unpaid">รอเริ่มใช้</span>':''}</div>
+          <div class="emp-sub">${String(t.from)<='0001-01-01'?'ตั้งแต่เริ่มต้น':'เริ่มใช้ตั้งแต่ '+fmtDate(t.from)}${next?' ถึง '+fmtDate(prevDay(next.from)):' เป็นต้นไป'}</div></div>
+        ${isFuture?`<button class="btn btn-ghost btn-sm" onclick="deleteThreshold('${t.from}')">ลบ</button>`:''}
+      </div>`;
+    }).join('')}
+    <div class="filter-bar" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+      <label>เกณฑ์ใหม่ (บาท)</label><input type="number" id="thrAmount" min="0" step="1" placeholder="เช่น 10000" style="max-width:140px">
+      <label>เริ่มใช้ตั้งแต่วันที่</label><input type="date" id="thrFrom" value="${today}" min="${today}">
+      <button class="btn btn-primary btn-sm" onclick="addThreshold()">บันทึกเกณฑ์ใหม่</button>
+    </div>
+  </div>`;
+}
+function prevDay(ds){
+  const d = new Date(ds+'T00:00:00'); d.setDate(d.getDate()-1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+async function addThreshold(){
+  if(CURRENT.role!=='admin') return;
+  const amt = Number((document.getElementById('thrAmount')||{}).value);
+  const from = (document.getElementById('thrFrom')||{}).value;
+  const today = todayStr();
+  if(!(amt>0)){ toast('กรุณากรอกยอดเกณฑ์ให้ถูกต้อง', true); flagInvalidField('thrAmount'); return; }
+  if(!from || from < today){ toast('วันที่เริ่มใช้ต้องเป็นวันนี้หรือหลังจากนี้เท่านั้น', true); flagInvalidField('thrFrom'); return; }
+  if(!confirm('ตั้งเกณฑ์เงินสดเป็น '+fmtMoney0(amt)+' บาท เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?\n(วันที่ผ่านมาแล้วจะไม่เปลี่ยน)')) return;
+  const prev = DB.cashThresholds ? DB.cashThresholds.map(x=>Object.assign({},x)) : null;
+  const base = getCashThresholds().filter(t=>String(t.from)!==from);
+  DB.cashThresholds = [...base, {from, amount:amt}].sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  try{ await saveCashThresholds(); }
+  catch(e){ DB.cashThresholds = prev; toast('บันทึกไม่สำเร็จ กรุณาลองใหม่', true); renderShell(); return; }
+  renderShell();
+  toast('ตั้งเกณฑ์ใหม่แล้ว — เริ่มใช้ '+fmtDate(from));
+}
+async function deleteThreshold(from){
+  if(CURRENT.role!=='admin') return;
+  if(String(from) <= todayStr()){ toast('ลบได้เฉพาะเกณฑ์ที่ยังไม่เริ่มใช้', true); return; }
+  if(!confirm('ลบเกณฑ์ที่เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?')) return;
+  const prev = getCashThresholds().map(x=>Object.assign({},x));
+  DB.cashThresholds = prev.filter(t=>String(t.from)!==String(from));
+  try{ await saveCashThresholds(); }
+  catch(e){ DB.cashThresholds = prev; toast('ลบไม่สำเร็จ กรุณาลองใหม่', true); renderShell(); return; }
+  renderShell();
+  toast('ลบเกณฑ์แล้ว');
+}
 function renderSettings(){
   if(CURRENT.role!=='admin') return renderNoAccess();
   return `
@@ -3050,6 +3127,7 @@ function renderSettings(){
         </div>`;
       }).join('') : `<div class="empty-state">${peakIcon(22)}<div>ยังไม่มีสาขา</div></div>`}
     </div>
+    ${renderThresholdSettings()}
     <div class="card settings-block">
       <div class="card-header"><div class="card-title">${peakIcon()} รายชื่อผู้ใช้งาน</div>
         <button class="btn btn-primary btn-sm" onclick="openUserForm()">+ เพิ่มพนักงาน</button>
