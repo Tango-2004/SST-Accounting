@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261113-44';
+const APP_VERSION = 'sst-build-20261113-45';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -850,8 +850,15 @@ function formatDDMMYYYY(iso){
   const [y,m,d] = parts;
   return `${d}/${m}/${y}`;
 }
+function fixBeYearIso(iso){
+  // กันกรณีวันที่ถูกเก็บเป็นปี พ.ศ. (เช่น 2569-10-30) ให้แปลงกลับเป็น ค.ศ. ก่อนแสดงผล
+  const m = /^(\d{4})(-\d{2}-\d{2})/.exec(String(iso||''));
+  if(m && Number(m[1]) >= 2400) return (Number(m[1])-543)+m[2];
+  return iso;
+}
 function fmtDate(iso){
   if(!iso) return '-';
+  iso = fixBeYearIso(iso);
   const d = new Date(iso+'T00:00:00');
   const day = String(d.getDate()).padStart(2,'0');
   const month = String(d.getMonth()+1).padStart(2,'0');
