@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261113-45';
+const APP_VERSION = 'sst-build-20261116-46';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -3068,7 +3068,7 @@ function renderThresholdSettings(){
   const cur = cashThresholdFor(today);
   return `<div class="card settings-block">
     <div class="card-header"><div class="card-title">${peakIcon()} เกณฑ์เงินสดที่เข้าหน้ายอดรวมเงินสด (HS / IV)</div></div>
-    <p class="helper-text" style="margin-top:0">บิลเงินสดที่ยอด ≥ เกณฑ์ จะขึ้นหน้ายอดรวมเงินสดอัตโนมัติ ตอนนี้ใช้เกณฑ์ <b>${fmtMoney0(cur)} บาท</b> ตั้งเกณฑ์ใหม่ได้โดยระบุวันที่เริ่มใช้ (วันนี้เป็นต้นไป) วันที่ผ่านมาแล้วจะใช้เกณฑ์เดิมตามประวัติ ไม่เปลี่ยน</p>
+    <p class="helper-text" style="margin-top:0">บิลเงินสดที่ยอด ≥ เกณฑ์ จะขึ้นหน้ายอดรวมเงินสดอัตโนมัติ ตอนนี้ใช้เกณฑ์ <b>${fmtMoney0(cur)} บาท</b> ตั้งเกณฑ์ใหม่ได้โดยระบุวันที่เริ่มใช้ จะเลือกย้อนหลังก็ได้ — วันที่ตั้งแต่วันเริ่มใช้เป็นต้นไปจะนับตามเกณฑ์ใหม่ (ยอดรวมเงินสดของวันเหล่านั้นอาจเปลี่ยน) ส่วนวันก่อนหน้านั้นใช้เกณฑ์เดิมตามประวัติ</p>
     ${list.map((t,i)=>{
       const next = list[i+1];
       const active = String(t.from) <= today && (!next || String(next.from) > today);
@@ -3076,12 +3076,12 @@ function renderThresholdSettings(){
       return `<div class="emp-row">
         <div class="emp-meta"><div class="emp-name">฿ ${fmtMoney0(t.amount)} ${active?'<span class="badge badge-status-cleared">ใช้อยู่ตอนนี้</span>':''}${isFuture?' <span class="badge badge-unpaid">รอเริ่มใช้</span>':''}</div>
           <div class="emp-sub">${String(t.from)<='0001-01-01'?'ตั้งแต่เริ่มต้น':'เริ่มใช้ตั้งแต่ '+fmtDate(t.from)}${next?' ถึง '+fmtDate(prevDay(next.from)):' เป็นต้นไป'}</div></div>
-        ${isFuture?`<button class="btn btn-ghost btn-sm" onclick="deleteThreshold('${t.from}')">ลบ</button>`:''}
+        ${String(t.from)>'0001-01-01'?`<button class="btn btn-ghost btn-sm" onclick="deleteThreshold('${t.from}')">ลบ</button>`:''}
       </div>`;
     }).join('')}
     <div class="filter-bar" style="margin-top:12px;gap:8px;flex-wrap:wrap">
       <label>เกณฑ์ใหม่ (บาท)</label><input type="number" id="thrAmount" min="0" step="1" placeholder="เช่น 10000" style="max-width:140px">
-      <label>เริ่มใช้ตั้งแต่วันที่</label><input type="date" id="thrFrom" value="${today}" min="${today}">
+      <label>เริ่มใช้ตั้งแต่วันที่</label><input type="date" id="thrFrom" value="${today}">
       <button class="btn btn-primary btn-sm" onclick="addThreshold()">บันทึกเกณฑ์ใหม่</button>
     </div>
   </div>`;
@@ -3096,8 +3096,9 @@ async function addThreshold(){
   const from = (document.getElementById('thrFrom')||{}).value;
   const today = todayStr();
   if(!(amt>0)){ toast('กรุณากรอกยอดเกณฑ์ให้ถูกต้อง', true); flagInvalidField('thrAmount'); return; }
-  if(!from || from < today){ toast('วันที่เริ่มใช้ต้องเป็นวันนี้หรือหลังจากนี้เท่านั้น', true); flagInvalidField('thrFrom'); return; }
-  if(!confirm('ตั้งเกณฑ์เงินสดเป็น '+fmtMoney0(amt)+' บาท เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?\n(วันที่ผ่านมาแล้วจะไม่เปลี่ยน)')) return;
+  if(!from){ toast('กรุณาเลือกวันที่เริ่มใช้', true); flagInvalidField('thrFrom'); return; }
+  const warn = from < today ? '\n\n⚠ เป็นการตั้งย้อนหลัง: ยอดรวมเงินสด (HS/IV) และรายงานพิมพ์ของวันที่ตั้งแต่ '+fmtDate(from)+' เป็นต้นมาจะเปลี่ยนตามเกณฑ์ใหม่' : '';
+  if(!confirm('ตั้งเกณฑ์เงินสดเป็น '+fmtMoney0(amt)+' บาท เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?'+warn)) return;
   const prev = DB.cashThresholds ? DB.cashThresholds.map(x=>Object.assign({},x)) : null;
   const base = getCashThresholds().filter(t=>String(t.from)!==from);
   DB.cashThresholds = [...base, {from, amount:amt}].sort((a,b)=>String(a.from).localeCompare(String(b.from)));
@@ -3108,8 +3109,9 @@ async function addThreshold(){
 }
 async function deleteThreshold(from){
   if(CURRENT.role!=='admin') return;
-  if(String(from) <= todayStr()){ toast('ลบได้เฉพาะเกณฑ์ที่ยังไม่เริ่มใช้', true); return; }
-  if(!confirm('ลบเกณฑ์ที่เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?')) return;
+  if(String(from) <= '0001-01-01'){ toast('ลบเกณฑ์เริ่มต้นไม่ได้', true); return; }
+  const w2 = String(from) <= todayStr() ? '\n\n⚠ เกณฑ์นี้ใช้งานไปแล้ว: ยอดรวมเงินสดของวันที่ตั้งแต่ '+fmtDate(from)+' เป็นต้นมาอาจเปลี่ยน' : '';
+  if(!confirm('ลบเกณฑ์ที่เริ่มใช้ตั้งแต่ '+fmtDate(from)+' ใช่ไหม?'+w2)) return;
   const prev = getCashThresholds().map(x=>Object.assign({},x));
   DB.cashThresholds = prev.filter(t=>String(t.from)!==String(from));
   try{ await saveCashThresholds(); }
