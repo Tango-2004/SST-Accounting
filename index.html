@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261116-46';
+const APP_VERSION = 'sst-build-20261123-48';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1341,20 +1341,21 @@ function openSaleForm(prefill, editRecord){
   window.__keepSlip = false;
   if(prefill.creditSaleId){ window.__receiveCreditId = prefill.creditSaleId; window.__receivePrefill = prefill; }
   else if(!keepAttachments || e){ window.__receiveCreditId = null; window.__receivePrefill = null; }
-  const date = e ? e.date : (getTab1FilterDate() || todayStr());
-  if(!e && CURRENT.role!=='admin' && date < todayStr()){
+  const date = e ? e.date : (prefill.creditSaleId ? (prefill.date || todayStr()) : (getTab1FilterDate() || todayStr()));
+  const creditBillDate = prefill.creditSaleId ? ((DB.sales.find(x=>x.id===prefill.creditSaleId)||{}).date || '') : '';
+  if(!e && !prefill.creditSaleId && CURRENT.role!=='admin' && date < todayStr()){
     toast('ไม่สามารถบันทึกย้อนหลังได้', true); return;
   }
   const noValue = e ? e.no : (DB.sales.filter(s=>s.date===date && s.customerType===TAB1_CUSTVIEW).length+1);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ${e?'แก้ไขรายการขาย':(prefill.creditSaleId?'รับชำระจากลูกค้าเครดิต':(prefill.billNo?'เพิ่มการชำระอีกช่องทาง':'เพิ่มรายการขาย'))} — ${TAB1_CUSTVIEW==='general'?'ลูกค้าทั่วไป':'ลูกค้าเครดิต'}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      ${prefill.creditSaleId?`<div class="locked-notice">${peakIcon(13)} กำลังรับชำระบิลเครดิตเลขที่ "${escapeHtml(prefill.billNo)}" (${escapeHtml(prefill.creditBranch||'')}) — เลือกวิธีชำระ แล้วบันทึก บิลเครดิตเดิมจะถูกทำเครื่องหมาย "ชำระแล้ว" ให้อัตโนมัติ รายการนี้จะบันทึกเป็นสาขาและวันที่ของคุณตามปกติ</div>`:''}
+      ${prefill.creditSaleId?`<div class="locked-notice">${peakIcon(13)} กำลังรับชำระบิลเครดิตเลขที่ "${escapeHtml(prefill.billNo)}" (${escapeHtml(prefill.creditBranch||'')}) — เลือกวิธีชำระและ "วันที่ลูกค้าโอนชำระ" (ย้อนหลังได้) แล้วบันทึก รายการนี้จะไปอยู่ในลูกค้าทั่วไปตามวันที่ที่เลือก และบิลเครดิตเดิมจะถูกทำเครื่องหมาย "ชำระแล้ว" ให้อัตโนมัติ</div>`:''}
       ${(prefill.billNo&&!prefill.creditSaleId)?`<div class="locked-notice">${peakIcon(13)} กำลังเพิ่มการชำระอีกช่องทางสำหรับบิลเลขที่ "${escapeHtml(prefill.billNo)}" — กรอกเฉพาะยอดและช่องทางที่เหลือ</div>`:''}
       ${e?`<div class="locked-notice">${peakIcon(13)} กำลังแก้ไขรายการนี้ — แก้ไข/ลบได้เฉพาะภายในวันที่บันทึกเดิมเท่านั้น</div>`:''}
       <div class="form-grid">
         <div class="field"><label>ลำดับที่</label><input type="number" id="fNo" value="${noValue}"></div>
-        <div class="field"><label>วันที่บันทึก</label><input type="date" id="fDate" value="${date}" ${CURRENT.role!=='admin'?'min="'+todayStr()+'"':''} oninput="document.getElementById('fDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="fDateCap">${formatDDMMYYYY(date)}</span></div>
+        <div class="field"><label>${prefill.creditSaleId?'วันที่ลูกค้าโอนชำระ':'วันที่บันทึก'}</label><input type="date" id="fDate" value="${date}" ${prefill.creditSaleId?('max="'+todayStr()+'"'+(creditBillDate?' min="'+creditBillDate+'"':'')):(CURRENT.role!=='admin'?'min="'+todayStr()+'"':'')} oninput="document.getElementById('fDateCap').textContent=formatDDMMYYYY(this.value)"><span class="helper-text" id="fDateCap">${formatDDMMYYYY(date)}</span></div>
         <div class="field full"><label>ชื่อลูกค้า</label><input type="text" id="fCustomer" placeholder="ชื่อลูกค้า" value="${escapeHtml(e?e.customerName:(prefill.customerName||''))}"></div>
         <div class="field"><label>ชื่อผู้ติดต่อ <span class="helper-text" style="margin:0;display:inline">(ไม่บังคับ)</span></label><input type="text" id="fContactName" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.contactName||''):'')}"></div>
         <div class="field"><label>เบอร์โทร <span class="helper-text" style="margin:0;display:inline">(ไม่บังคับ)</span></label><input type="tel" id="fContactPhone" placeholder="(ไม่บังคับ)" value="${escapeHtml(e?(e.contactPhone||''):'')}"></div>
@@ -1389,7 +1390,7 @@ function openSaleForm(prefill, editRecord){
         <div class="field full" id="slipField" style="display:${needsSlip(window.__selectedPayType, e?e.depositMethod:'')?'block':'none'}">
           <label>รูปใบโอน (แนบได้หลายรูป) ${(e&&(e.slipUrl||needsSlip(e.paymentType,e.depositMethod)))?'<span class="helper-text" style="margin:0;display:inline">(ไม่บังคับตอนแก้ไข)</span>':'<span style="color:var(--red)">*</span>'}</label>
           <div id="slipUploadBox" style="border:1.5px dashed var(--border);border-radius:10px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">${slipBoxHtml()}</div>
-          ${e&&e.slipUrl?((CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<div class="helper-text" style="margin-top:6px">
+          ${e&&e.slipUrl?(true?`<div class="helper-text" style="margin-top:6px">
             <div>มีใบโอนแนบอยู่แล้ว — ติ๊ก "นำออก" ที่รูปเก่าที่ต้องการเปลี่ยน แล้วแนบรูปใหม่ด้านบน เมื่อบันทึก ลิงก์ Drive จะเป็นรูปใหม่ และรูปเก่าจะถูกย้ายไปถังขยะของ Drive (กู้คืนได้ 30 วัน)</div>
             ${slipUrlList(e.slipUrl).map((u,i)=>`<label style="display:flex;align-items:center;gap:8px;margin-top:4px;cursor:pointer"><input type="checkbox" ${(window.__slipRemove||[]).includes(u)?'checked':''} onchange="toggleSlipRemove(${i},this.checked)" style="width:16px;height:16px;accent-color:var(--red)"><a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a> <span>นำออก</span></label>`).join('')}
           </div>`:`<p class="helper-text" style="margin-top:4px">มีใบโอนแนบอยู่แล้ว: ${slipUrlList(e.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank">รูปที่ ${i+1} ↗</a>`).join(' · ')} — รูปที่เลือกเพิ่มจะถูกเพิ่มต่อจากของเดิม</p>`):''}
@@ -1666,6 +1667,7 @@ function previewSale(){
   const err = validateSale(f, chkIn);
   if(err){ toast(err.msg, true); flagInvalidField(err.field); return; }
   window.__lastPreviewForm = f; window.__lastPreviewCheck = chkIn;
+  if(window.__receivePrefill && window.__receiveCreditId) window.__receivePrefill.date = f.date;
   const pt = PAY_TYPES.find(p=>p.id===f.paymentType);
   openModal(`
     <div class="modal-header"><div class="modal-title">${peakIcon()} ตัวอย่างก่อนบันทึก</div><button class="modal-close" onclick="closeModal()">✕</button></div>
@@ -1737,8 +1739,7 @@ async function submitSale(){
     renderShell();
     toast('แก้ไขรายการเรียบร้อย');
     const slipsToUpload = needsSlip(updated.paymentType, updated.depositMethod) ? (window.__slipImages||[]).slice() : [];
-    const isAdminEdit = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
-    const slipsToRemove = isAdminEdit ? (window.__slipRemove||[]).filter(u=>slipUrlList(existing.slipUrl).includes(u)) : [];
+    const slipsToRemove = true ? (window.__slipRemove||[]).filter(u=>slipUrlList(existing.slipUrl).includes(u)) : [];
     window.__slipImages = []; window.__slipRemove = [];
     pushSaleUpsert(updated).then(()=>finishSlipChanges(updated, slipsToUpload, slipsToRemove));
     if(makeCheck) createCheckFromSale(updated, chkIn, saleCheckFull, saleCheckThumb);
