@@ -467,7 +467,7 @@ tr:hover td{background:var(--surface-soft);}
 // ระบบเช็คเวอร์ชันอัตโนมัติ — แก้ปัญหาเบราว์เซอร์บางเครื่อง (โดยเฉพาะมือถือ)
 // จำหน้าเว็บเก่าค้างไว้ไม่ยอมโหลดใหม่ แม้จะอัปเดตไฟล์บน GitHub แล้วก็ตาม
 // ทำงานทุกครั้งที่เปิดหน้า โดยไม่ต้องให้ใครกดล้างแคชเองอีกต่อไป
-const APP_VERSION = 'sst-build-20261123-48';
+const APP_VERSION = 'sst-build-20261126-49';
 (function checkForUpdate(){
   try{
     fetch(location.pathname + '?_cachebust=' + Date.now(), {cache:'no-store'})
@@ -1129,7 +1129,8 @@ function renderTab1(){
         <div class="card-title">${peakIcon()} ${TAB1_CUSTVIEW==='general'?'ตารางบันทึกลูกค้าทั่วไป':'ตารางบันทึกลูกค้าเครดิต'}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="openCombinePinkBills()">🌸 รวมบิลสีชมพู</button>
-          <button class="btn btn-outline btn-sm" onclick="printReport('tab1PrintCard')">🖨 พิมพ์ตารางนี้</button>
+          <button class="btn btn-outline btn-sm" onclick="printTab1Table('normal')">🖨 พิมพ์ตารางนี้</button>
+          ${TAB1_CUSTVIEW==='credit'?`<button class="btn btn-outline btn-sm" onclick="printTab1Table('yellow')" style="border-color:#E0B000;color:#8A6A00">🖨 พิมพ์บิลสีเหลือง</button>`:''}
           ${TAB1_CUSTVIEW==='general'?`<button class="btn btn-outline btn-sm" onclick="openReceiveCredit()">💳 รับชำระจากลูกค้าเครดิต</button>`:''}
           <button class="btn btn-primary btn-sm" onclick="openSaleForm()">+ เพิ่มรายการ</button>
         </div>
@@ -1144,7 +1145,7 @@ function renderTab1(){
         </div>
         <div class="rl-meta" style="font-size:11px;color:var(--ink-faint)">พิมพ์เมื่อ ${fmtDate(todayStr())} โดย ${escapeHtml(CURRENT.name)}</div>
       </div>
-      ${renderTab1Table()}
+      <div id="t1TableHost">${renderTab1Table()}</div>
     </div>
   `;
 }
@@ -1156,7 +1157,7 @@ function getTab1FilterDate(){
   const el = document.getElementById('t1Date');
   return el ? el.value : todayStr();
 }
-function renderTab1Table(){
+function renderTab1Table(printMode){
   const date = getTab1FilterDate();
   const isAdmin = (CURRENT.role==='admin'||CURRENT.role==='supervisor');
   console.log('[RENDER] Tab1Table — DB.sales.length:', DB.sales.length, 'filterDate:', date, 'view:', TAB1_CUSTVIEW);
@@ -1175,6 +1176,8 @@ function renderTab1Table(){
   const payFilter = payEl ? payEl.value : '';
   window.__t1pay = payFilter;
   if(payFilter) rows = rows.filter(s=>s.paymentType===payFilter);
+  if(printMode==='yellow') rows = rows.filter(s=>s.yellowBill);
+  else if(printMode==='normal' && TAB1_CUSTVIEW==='credit') rows = rows.filter(s=>!s.yellowBill);
   rows.sort((a,b)=>a.no-b.no);
   if(!rows.length){
     return `<div class="empty-state">${peakIcon(26)}<div>ยังไม่มีรายการบันทึกในวันที่เลือก</div></div>`;
@@ -1194,7 +1197,7 @@ function renderTab1Table(){
         return `<tr${r.cancelled?' class="no-print" style="opacity:0.6"':''}>
           <td>${r.no}</td>
           <td>${escapeHtml(r.customerName)}${r.cancelled?` <span class="badge badge-unpaid" style="font-size:10px">✕ ยกเลิกแล้ว</span>`:''}${(r.contactName||r.contactPhone)?`<br><span class="helper-text" style="margin:0">${r.contactName?escapeHtml(r.contactName):''}${r.contactName&&r.contactPhone?' · ':''}${r.contactPhone?escapeHtml(r.contactPhone):''}</span>`:''}</td>
-          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}${r.reservation?` <span class="badge" style="font-size:10px;background:#FFF1D6;color:#9A5B00">📝 ใบจอง · รอจับคู่</span>`:''}${(!r.reservation&&r.reservationNo)?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td>
+          <td>${escapeHtml(r.billNo)}${billCounts[r.billNo]>1?` <span class="badge badge-status-deposited" style="font-size:10px">แบ่งชำระ</span>`:''}${r.pinkBill?` <span class="badge" style="font-size:10px;background:#FDE2EC;color:#B3336B">🌸 ชมพู</span>`:''}${r.yellowBill?` <span class="badge no-print" style="font-size:10px;background:#FFF4B8;color:#8A6A00">💛 เหลือง</span>`:''}${r.combinedInto?` <span class="badge badge-status-cleared" style="font-size:10px">รวมเข้า IV แล้ว</span>`:''}${r.reservation?` <span class="badge" style="font-size:10px;background:#FFF1D6;color:#9A5B00">📝 ใบจอง · รอจับคู่</span>`:''}${(!r.reservation&&r.reservationNo)?` <span class="helper-text" style="margin:0;font-size:10.5px">(ใบจอง ${escapeHtml(r.reservationNo)})</span>`:''}</td>
           <td style="text-align:right;${r.cancelled?'text-decoration:line-through':''}">${fmtMoney(r.amount)}</td>
           <td><span class="badge ${pt?pt.badge:''}">${pt?pt.icon+' '+pt.label:'-'}</span>${(r.paymentType==='paid'&&r.paidDate)?`<br><span class="helper-text" style="margin:0;font-size:10.5px">ชำระวันที่ ${fmtDate(r.paidDate)}${paidAtBranchNote(r)}</span>`:''}${r.receivesCreditId?`<br><span class="helper-text" style="margin:0;font-size:10.5px">รับชำระบิลเครดิต</span>`:''}</td>
           <td>${r.bank?escapeHtml(r.bank):'-'}${r.slipUrl?`<br><span class="no-print">${slipUrlList(r.slipUrl).map((u,i,arr)=>`<a href="${escapeHtml(u)}" target="_blank" title="เปิดดูใบโอน">📎 ใบโอน${arr.length>1?' '+(i+1):''}</a>`).join(' ')}</span>`:''}${r.checkId?`<br><span class="no-print helper-text" style="margin:0">🧾 เข้าหน้าเช็คแล้ว</span>`:''}</td>
@@ -1215,6 +1218,21 @@ function renderTab1Table(){
       ${(CURRENT.role==='admin'||CURRENT.role==='supervisor')?`<tr style="font-weight:700"><td colspan="3">Σ รวมทุกยอด</td><td style="text-align:right">${fmtMoney(total)}</td><td colspan="${isCredit?6:5}"></td></tr>`:''}
     </tfoot>
   </table></div>`;
+}
+function printTab1Table(mode){
+  const host = document.getElementById('t1TableHost');
+  if(!host){ printReport('tab1PrintCard'); return; }
+  const html = renderTab1Table(mode);
+  if(mode==='yellow' && html.indexOf('empty-state')>=0){ toast('วันที่/สาขานี้ไม่มีบิลสีเหลือง', true); return; }
+  host.innerHTML = html;
+  const restore = function(){
+    window.removeEventListener('afterprint', restore);
+    const h = document.getElementById('t1TableHost');
+    if(h) h.innerHTML = renderTab1Table();
+  };
+  window.addEventListener('afterprint', restore);
+  setTimeout(function(){ window.print(); }, 50);
+  setTimeout(restore, 30000);
 }
 function printReport(containerId, isModal){
   if(isModal){
@@ -1261,7 +1279,7 @@ function refreshCombinedReport(){
   if(content) content.innerHTML = buildCombinedReportHtml(date, branch);
 }
 function buildCombinedReportHtml(date, branchFilter){
-  let daySales = DB.sales.filter(s=>s.date===date && !s.combinedFrom && !s.cancelled);
+  let daySales = DB.sales.filter(s=>s.date===date && !s.combinedFrom && !s.cancelled && !s.yellowBill);
   if(branchFilter) daySales = daySales.filter(s=>s.branch===branchFilter);
   const letterhead = `
     <div class="report-letterhead" style="margin-bottom:14px">
@@ -1366,6 +1384,12 @@ function openSaleForm(prefill, editRecord){
             <span style="font-size:13.5px">🌸 เป็นบิลสีชมพู</span>
           </label>
         </div>
+        ${(TAB1_CUSTVIEW==='credit'||(e&&e.customerType==='credit'))?`<div class="field" style="display:flex;align-items:flex-end;padding-bottom:11px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+            <input type="checkbox" id="fYellowBill" ${e&&e.yellowBill?'checked':''} style="width:17px;height:17px;accent-color:#E0B000">
+            <span style="font-size:13.5px">💛 เป็นบิลสีเหลือง <span class="helper-text" style="margin:0;display:block">พิมพ์แยกจากตารางปกติ</span></span>
+          </label>
+        </div>`:''}
         <div class="field full">
           <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin:0">
             <input type="checkbox" id="fReservation" ${e&&e.reservation?'checked':''} style="width:17px;height:17px;accent-color:var(--red);margin-top:2px">
@@ -1618,6 +1642,7 @@ function collectSaleForm(){
     branch: (CURRENT.role==='admin'||CURRENT.role==='supervisor') ? (document.getElementById('fBranch')?.value.trim()||'สำนักงานใหญ่') : CURRENT.branch,
     creditDays: TAB1_CUSTVIEW==='credit' ? (Number(document.getElementById('fCreditDays')?.value)||0) : undefined,
     pinkBill: document.getElementById('fPinkBill') ? document.getElementById('fPinkBill').checked : false,
+    yellowBill: document.getElementById('fYellowBill') ? document.getElementById('fYellowBill').checked : false,
     reservation: document.getElementById('fReservation') ? document.getElementById('fReservation').checked : false,
     paidDate: (window.__selectedPayType==='paid') ? ((document.getElementById('fPaidDate')||{}).value || todayStr()) : '',
     depositMethod: (window.__selectedPayType==='deposit' && document.getElementById('fDepositMethod') && document.getElementById('fDepositMethod').value) ? document.getElementById('fDepositMethod').value : undefined,
